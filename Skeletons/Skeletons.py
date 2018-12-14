@@ -12,9 +12,9 @@ class Skeleton:
     def __init__(self):
         # Data sources
         self.arbor = Arbor()
-        self.segmentation = None
-        self.segmentation_counts = None
-        self.distances = None
+        self._segmentation = None
+        self._segmentation_counts = None
+        self._distances = None
 
         # arbor dependent properties
         self._bounds = None
@@ -38,9 +38,9 @@ class Skeleton:
 
     def reset_data_sources(self):
         self.arbor = Arbor()
-        self.segmentation = None
-        self.segmentation_counts = None
-        self.distances = None
+        self._segmentation = None
+        self._segmentation_counts = None
+        self._distances = None
 
     def reset_arbor_props(self):
         self._bounds = None
@@ -129,6 +129,39 @@ class Skeleton:
             return self._sphere
         else:
             return self._sphere
+
+    @property
+    def segmentation(self):
+        return self._segmentation
+
+    @segmentation.setter
+    def segmentation(self, tree):
+        if self._segmentation is None:
+            self._segmentation = tree
+        else:
+            raise Exception("trying to overwrite segmentation octree")
+
+    @property
+    def segmentation_counts(self):
+        return self._segmentation_counts
+
+    @segmentation_counts.setter
+    def segmentation_counts(self, tree):
+        if self._segmentation_counts is None:
+            self._segmentation_counts = tree
+        else:
+            raise Exception("trying to overwrite segmentation_counts octree")
+
+    @property
+    def distances(self):
+        return self._distances
+
+    @distances.setter
+    def distances(self, tree):
+        if self._distances is None:
+            self._distances = tree
+        else:
+            raise Exception("trying to overwrite distances octree")
 
     # -----Inputing Skeleton Data-----
 
@@ -502,7 +535,9 @@ class Skeleton:
                 lower = np.minimum(node.value.center, lower)
         self._bounds = (lower.astype(int), upper.astype(int))
 
-    def create_octrees_from_nodes(self, tree_bounds=None, block_shape=None, nodes=None):
+    def create_octrees_from_nodes(
+        self, tree_bounds=None, block_shape=None, nodes=None, dist=True
+    ):
         def _dist_block(dimensions, resolution):
             x = (
                 (
@@ -543,27 +578,25 @@ class Skeleton:
         self.segmentation_counts = OctreeVolume(
             self.fov_shape, self.region_bounds, np.uint8, _data_populator
         )
-        if self.distances is None:
+        if dist:
             self.distances = OctreeVolume(
                 self.fov_shape, self.region_bounds, float, _data_populator2
             )
+            dist_block = _dist_block(self.fov_shape, self.resolution)
 
-            dist_block = None
-            if nodes is None:
-                nodes = self.get_nodes()
-            for node in nodes:
-                node_bounds = node.value.get_bounds(self.fov_shape)
-                if dist_block is None:
-                    dist_block = _dist_block(
-                        node_bounds[1] - node_bounds[0], self.resolution
-                    )
-                node_bounds = list(map(slice, node_bounds[0], node_bounds[1]))
+        if nodes is None:
+            nodes = self.get_nodes()
+        for node in nodes:
+            node_bounds = node.value.get_bounds(self.fov_shape)
+
+            node_bounds = list(map(slice, node_bounds[0], node_bounds[1]))
+            if dist:
                 self.distances[node_bounds] = np.minimum(
                     self.distances[node_bounds], dist_block
                 )
-                if node.value.mask is not None:
-                    self.segmentation[node_bounds] += node.value.mask
-                self.segmentation_counts[node_bounds] += 1
+            if node.value.mask is not None:
+                self.segmentation[node_bounds] += node.value.mask
+            self.segmentation_counts[node_bounds] += 1
 
     # -----Other-----
 
@@ -908,7 +941,7 @@ class Skeleton:
                     np.minimum(index_a, index_b),
                     np.maximum(index_a, index_b) + 1,
                 )
-            )
+            ), increment_denominator=True
         )
         reversers = index_a < index_b
         a2b_matrix = a2b_matrix[
