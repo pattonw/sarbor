@@ -14,7 +14,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 """Simple octree data structures for block sparse 3D arrays."""
 import numpy as np
-from libpyn5 import read_n5, write_n5
+from .libpyn5 import read_n5, write_n5
 
 
 class OctreeVolume(object):
