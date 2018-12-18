@@ -239,18 +239,13 @@ class Skeleton:
         """
         return self.filled.get(nid, False)
 
-    def fill(self, nid, nid_bounds, body):
+    def fill(self, nid, mask):
         """
         fill a node/region with a mask
         """
         node = self.node_map[nid]
 
-        node.value.set_bounds((nid_bounds.start, nid_bounds.stop))
-        try:
-            mask, _ = body.get_seeded_component()
-            node.value.set_mask(mask)
-        except ValueError:
-            print("No seeded component this time mate!")
+        node.value.mask = mask
         self.filled[nid] = True
 
     def input_masks(
