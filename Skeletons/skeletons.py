@@ -220,7 +220,7 @@ class Skeleton:
         for nid, data in id_to_data.items():
             node, pid, value = data
             node.value = value
-            parent = id_to_data.get(pid, None)
+            parent = None if nid == pid else id_to_data.get(pid, None)
             if parent is None:
                 roots.append(node)
             else:
@@ -941,7 +941,8 @@ class Skeleton:
                     np.minimum(index_a, index_b),
                     np.maximum(index_a, index_b) + 1,
                 )
-            ), increment_denominator=True
+            ),
+            increment_denominator=True,
         )
         reversers = index_a < index_b
         a2b_matrix = a2b_matrix[
