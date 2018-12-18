@@ -5,7 +5,7 @@ import time
 
 from .octrees import OctreeVolume
 from .arbors import Arbor
-from .FillRegion import Region
+from .fovs import Region
 
 
 class Skeleton:
