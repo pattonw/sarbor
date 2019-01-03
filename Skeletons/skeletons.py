@@ -736,8 +736,13 @@ class Skeleton:
         return sub_nid_branch_score_map
 
     def get_nid_branch_score_map(
-        self, nodes=None, sphere=True, mass=True, incrDenom=True
+        self, nodes=None, sphere=True, mass=True, incrDenom=True, consenus=True
     ):
+        """
+        Create a map from node ids to branch scores. Nodes can then be sorted
+        by branch_score, leaving nodes that are likely to be in the presence of
+        branches to be near the top.
+        """
         nid_score_map = {}
 
         if nodes is None:
@@ -783,7 +788,11 @@ class Skeleton:
 
             nid_score_map[node.key] = (direction, mag)
             if any(np.isnan(x) for x in direction):
-                print("nan")
+                raise ValueError("Direction is NAN!")
+
+            if consenus:
+                nid_score_map = self._smooth_scores(nid_score_map)
+
         return nid_score_map
 
     def get_node_connectivity(self, ascending=True):
