@@ -829,13 +829,13 @@ class Skeleton:
         print("starting node connectivity")
         nid_score_map = {}
         for node in self.get_nodes():
-            try:
+            if node.parent is None:
+                nid_score_map[node.key] = (None, -1)
+            else:
                 nid_score_map[node.key] = (
                     node.parent.key,
                     self.get_connection(node.value.center, node.parent.value.center),
                 )
-            except Exception as e:
-                print(e)
         return nid_score_map
 
     def save_rankings(self, output_file="ranking_data.csv"):
