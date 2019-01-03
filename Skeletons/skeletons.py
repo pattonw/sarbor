@@ -7,14 +7,16 @@ from .octrees import OctreeVolume
 from .arbors import Arbor
 from .fovs import Region
 
+# from typing import Dict
+
 
 class Skeleton:
     def __init__(self):
         # Data sources
-        self.arbor = Arbor()
-        self._segmentation = None
-        self._segmentation_counts = None
-        self._distances = None
+        self.arbor: Arbor = Arbor()
+        self._segmentation: OctreeVolume = None
+        self._segmentation_counts: OctreeVolume = None
+        self._distances: OctreeVolume = None
 
         # arbor dependent properties
         self._bounds = None
@@ -37,7 +39,6 @@ class Skeleton:
         self.reset_floodfill_props()
 
     def reset_data_sources(self):
-        self.arbor = Arbor()
         self._segmentation = None
         self._segmentation_counts = None
         self._distances = None
@@ -131,22 +132,34 @@ class Skeleton:
             return self._sphere
 
     @property
-    def segmentation(self):
+    def segmentation(self) -> OctreeVolume:
+        """
+        This octree contains counts of how many times a voxel was assigned
+        a value of "in" the desired volume.
+        """
+        if self._segmentation is None:
+            self.create_octrees_from_nodes()
         return self._segmentation
 
     @segmentation.setter
-    def segmentation(self, tree):
+    def segmentation(self, seg: OctreeVolume) -> None:
         if self._segmentation is None:
-            self._segmentation = tree
+            self._segmentation = seg
         else:
             raise Exception("trying to overwrite segmentation octree")
 
     @property
-    def segmentation_counts(self):
+    def segmentation_counts(self) -> OctreeVolume:
+        """
+        This octree is simply a volume where every voxel has a value
+        equal to the number of field of views containing it
+        """
+        if self._segmentation_counts is None:
+            self.create_octrees_from_nodes()
         return self._segmentation_counts
 
     @segmentation_counts.setter
-    def segmentation_counts(self, tree):
+    def segmentation_counts(self, tree) -> None:
         if self._segmentation_counts is None:
             self._segmentation_counts = tree
         else:
@@ -230,7 +243,6 @@ class Skeleton:
         else:
             sizes = [len(list(node.traverse())) for node in roots]
             self.arbor.root = roots[sizes.index(max(sizes))]
-            self.reset_properties_from_arbor()
         self.reset_arbor_props()
 
     def is_filled(self, nid):
