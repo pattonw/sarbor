@@ -13,10 +13,10 @@ from .fovs import Region
 class Skeleton:
     def __init__(self):
         # Data sources
-        self.arbor: Arbor = Arbor()
-        self._segmentation: OctreeVolume = None
-        self._segmentation_counts: OctreeVolume = None
-        self._distances: OctreeVolume = None
+        self.arbor = Arbor()
+        self._segmentation = None
+        self._segmentation_counts = None
+        self._distances = None
 
         # arbor dependent properties
         self._bounds = None
@@ -132,7 +132,7 @@ class Skeleton:
             return self._sphere
 
     @property
-    def segmentation(self) -> OctreeVolume:
+    def segmentation(self):
         """
         This octree contains counts of how many times a voxel was assigned
         a value of "in" the desired volume.
@@ -142,14 +142,14 @@ class Skeleton:
         return self._segmentation
 
     @segmentation.setter
-    def segmentation(self, seg: OctreeVolume) -> None:
+    def segmentation(self, seg):
         if self._segmentation is None:
             self._segmentation = seg
         else:
             raise Exception("trying to overwrite segmentation octree")
 
     @property
-    def segmentation_counts(self) -> OctreeVolume:
+    def segmentation_counts(self):
         """
         This octree is simply a volume where every voxel has a value
         equal to the number of field of views containing it
@@ -159,7 +159,7 @@ class Skeleton:
         return self._segmentation_counts
 
     @segmentation_counts.setter
-    def segmentation_counts(self, tree) -> None:
+    def segmentation_counts(self, tree):
         if self._segmentation_counts is None:
             self._segmentation_counts = tree
         else:
