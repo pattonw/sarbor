@@ -686,7 +686,8 @@ class Skeleton:
                 [
                     nid_score_map[n.key][0] * nid_score_map[n.key][1]
                     for n in neighbors + [node]
-                ]
+                ],
+                axis=0,
             ) / (len(neighbors) + 1)
             smoothed_map[nid] = combined_vec, np.linalg.norm(combined_vec)
         return smoothed_map
@@ -756,7 +757,7 @@ class Skeleton:
         return sub_nid_branch_score_map
 
     def get_nid_branch_score_map(
-        self, nodes=None, sphere=True, mass=True, incrDenom=True, consenus=True
+        self, nodes=None, sphere=True, mass=False, incrDenom=True, consenus=True
     ):
         """
         Create a map from node ids to branch scores. Nodes can then be sorted
@@ -830,7 +831,7 @@ class Skeleton:
         nid_score_map = {}
         for node in self.get_nodes():
             if node.parent is None:
-                nid_score_map[node.key] = (None, -1)
+                nid_score_map[node.key] = (node.key, -1)
             else:
                 nid_score_map[node.key] = (
                     node.parent.key,
@@ -842,18 +843,30 @@ class Skeleton:
         connectivity_rankings = self.get_node_connectivity()
         branch_rankings = self.get_nid_branch_score_map()
         ranking_data = [
-            ("nid", "connectivity_score", "branch_score", "branch_direction")
+            (
+                "nid",
+                "pid",
+                "connectivity_score",
+                "branch_score",
+                "branch_dz",
+                "branch_dy",
+                "branch_dx",
+            )
         ]
         for node in self.get_nodes():
             ranking_data.append(
                 (
                     node.key,
-                    connectivity_rankings[node.key],
-                    branch_rankings[node.key][0],
+                    connectivity_rankings[node.key][0],
+                    connectivity_rankings[node.key][1],
                     branch_rankings[node.key][1],
+                    branch_rankings[node.key][0][0],
+                    branch_rankings[node.key][0][1],
+                    branch_rankings[node.key][0][2],
                 )
             )
-        np.savetxt(output_file, np.asarray(ranking_data), delimiter=",")
+        data = np.array(ranking_data)
+        np.savetxt(output_file, data, delimiter=",", fmt="%s")
 
     def calculate_strahlers(self):
         queue = []
