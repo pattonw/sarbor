@@ -123,8 +123,8 @@ class Skeleton:
     @property
     def sphere(self):
         if self._sphere is None:
-        shape = self.fov_shape
-        res = self.resolution
+            shape = self.fov_shape
+            res = self.resolution
             self._sphere = self._create_sphere(shape, res)
             return self._sphere
         else:
@@ -825,6 +825,23 @@ class Skeleton:
             except Exception as e:
                 print(e)
         return nid_score_map
+
+    def save_rankings(self, output_file="ranking_data.csv"):
+        connectivity_rankings = self.get_node_connectivity()
+        branch_rankings = self.get_nid_branch_score_map()
+        ranking_data = [
+            ("nid", "connectivity_score", "branch_score", "branch_direction")
+        ]
+        for node in self.get_nodes():
+            ranking_data.append(
+                (
+                    node.key,
+                    connectivity_rankings[node.key],
+                    branch_rankings[node.key][0],
+                    branch_rankings[node.key][1],
+                )
+            )
+        np.savetxt(output_file, np.asarray(ranking_data), delimiter=",")
 
     def calculate_strahlers(self):
         queue = []
