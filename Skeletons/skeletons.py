@@ -122,9 +122,9 @@ class Skeleton:
 
     @property
     def sphere(self):
+        if self._sphere is None:
         shape = self.fov_shape
         res = self.resolution
-        if self._sphere is None:
             self._sphere = self._create_sphere(shape, res)
             return self._sphere
         else:
@@ -689,6 +689,14 @@ class Skeleton:
         mass=True,
         DEBUG=None,
     ):
+        """
+        This function is mostly used for debugging purposes. Given that you know
+        a specific node is a branch point, you can delete a branch, and then find
+        all nodes where the nodes field of view overlaps with any node in the now
+        deleted branch. Since clearly any node whose field of view does not overlap
+        will not have its branch score changed by removing distant nodes. This greatly
+        reduces computation time needed to validate larger datasets.
+        """
         # Assumes Two halves of the neuron do not come near each other
         large_radius = [
             self.node_map[key]
