@@ -839,7 +839,7 @@ class Skeleton:
                 )
         return nid_score_map
 
-    def save_rankings(self, output_file="ranking_data.csv"):
+    def save_rankings(self, output_file="ranking_data"):
         connectivity_rankings = self.get_node_connectivity()
         branch_rankings = self.get_nid_branch_score_map()
         ranking_data = [
@@ -866,7 +866,7 @@ class Skeleton:
                 )
             )
         data = np.array(ranking_data)
-        np.savetxt(output_file, data, delimiter=",", fmt="%s")
+        np.savetxt("{}.csv".format(output_file), data, delimiter=",", fmt="%s")
 
     def calculate_strahlers(self):
         queue = []
