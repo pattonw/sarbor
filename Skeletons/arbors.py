@@ -137,11 +137,11 @@ class Arbor:
             """
             node has only key, value, parent
             """
-            self._key = nid
-            self._value = value
-            self._parent = None
+            self.key = nid
+            self.value = value
+            self.parent = None
             self.children = []
-            self._strahler = strahler
+            self.strahler = strahler
 
         @property
         def key(self):
@@ -149,6 +149,10 @@ class Arbor:
             A unique identifier for this Node
             """
             return self._key
+
+        @key.setter
+        def key(self, key):
+            self._key = int(key)
 
         @property
         def value(self):
