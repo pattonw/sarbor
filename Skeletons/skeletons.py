@@ -811,8 +811,8 @@ class Skeleton:
             if any(np.isnan(x) for x in direction):
                 raise ValueError("Direction is NAN!")
 
-            if consenus:
-                nid_score_map = self._smooth_scores(nid_score_map)
+        if consenus:
+            nid_score_map = self._smooth_scores(nid_score_map)
 
         return nid_score_map
 
