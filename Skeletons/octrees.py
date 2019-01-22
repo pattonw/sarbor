@@ -74,8 +74,8 @@ class OctreeVolume(object):
 
         # z,y,x format
         dataset_attrs = {
-            "block_shape": np.array([13, 128, 128]),
-            "dimensions": [7062, 15850 + 3 // 4, 10600 // 4],
+            "block_shape": self.leaf_shape,
+            "dimensions": self.bounds[1] - self.bounds[0],
         }
         leaf_count = 0
         for leaf in self.iter_leaves():
