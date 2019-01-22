@@ -7,7 +7,10 @@ from .octrees import OctreeVolume
 from .arbors import Arbor
 from .fovs import Region
 
-# from typing import Dict
+from typing import Tuple, Dict, List
+
+
+Bounds = Tuple[np.ndarray, np.ndarray]
 
 
 class Skeleton:
@@ -57,7 +60,7 @@ class Skeleton:
         self.filled = {}
         self.max_mass_v_mag = -1
 
-    def clone(self):
+    def clone(self) -> "Skeleton":
         new_skeleton = Skeleton()
         new_skeleton._fov_shape = self._fov_shape
         new_skeleton._res = self._res
@@ -66,18 +69,16 @@ class Skeleton:
 
     # -----PROPERTIES-----
     @property
-    def node_bounds(self):
+    def node_bounds(self) -> Bounds:
         """
         Bounds containing all node centers
         """
         if self._bounds is None:
-            self.calculate_tree_bounds()
-            return self._bounds
-        else:
-            return self._bounds
+            self._bounds = self.calculate_tree_bounds()
+        return self._bounds
 
     @property
-    def region_bounds(self):
+    def region_bounds(self) -> Bounds:
         """
         Bounds containing the field of view around every node
         """
@@ -87,20 +88,20 @@ class Skeleton:
         )
 
     @property
-    def resolution(self):
+    def resolution(self) -> np.ndarray:
         if self._res is None:
             raise Exception("The resolution has not been defined for this tree")
         return self._res
 
     @resolution.setter
-    def resolution(self, res):
+    def resolution(self, res: np.ndarray):
         if self._res is None:
             self._res = res
         else:
             raise Exception("Overwriting the skeletons resolution is not supported")
 
     @property
-    def fov_shape(self):
+    def fov_shape(self) -> np.ndarray:
         if self._fov_shape is None:
             raise Exception(
                 "The field of view dimensions have not been defined for this tree"
@@ -109,20 +110,20 @@ class Skeleton:
             return self._fov_shape
 
     @fov_shape.setter
-    def fov_shape(self, shape):
+    def fov_shape(self, shape: np.ndarray):
         if self._fov_shape is None:
             self._fov_shape = shape
         else:
             raise Exception("Overwriting the skeletons fov shape is not supported")
 
     @property
-    def node_map(self):
+    def node_map(self) -> Dict[int, Arbor.Node]:
         if self._node_map is None:
             self._node_map = self.arbor.get_key_map()
         return self._node_map
 
     @property
-    def sphere(self):
+    def sphere(self) -> np.ndarray:
         if self._sphere is None:
             shape = self.fov_shape
             res = self.resolution
@@ -132,7 +133,7 @@ class Skeleton:
             return self._sphere
 
     @property
-    def segmentation(self):
+    def segmentation(self) -> OctreeVolume:
         """
         This octree contains counts of how many times a voxel was assigned
         a value of "in" the desired volume.
@@ -142,14 +143,14 @@ class Skeleton:
         return self._segmentation
 
     @segmentation.setter
-    def segmentation(self, seg):
+    def segmentation(self, seg: OctreeVolume):
         if self._segmentation is None:
             self._segmentation = seg
         else:
             raise Exception("trying to overwrite segmentation octree")
 
     @property
-    def segmentation_counts(self):
+    def segmentation_counts(self) -> OctreeVolume:
         """
         This octree is simply a volume where every voxel has a value
         equal to the number of field of views containing it
@@ -159,18 +160,20 @@ class Skeleton:
         return self._segmentation_counts
 
     @segmentation_counts.setter
-    def segmentation_counts(self, tree):
+    def segmentation_counts(self, tree: OctreeVolume):
         if self._segmentation_counts is None:
             self._segmentation_counts = tree
         else:
             raise Exception("trying to overwrite segmentation_counts octree")
 
     @property
-    def distances(self):
+    def distances(self) -> OctreeVolume:
+        if self._distances is None:
+            self.create_octrees_from_nodes()
         return self._distances
 
     @distances.setter
-    def distances(self, tree):
+    def distances(self, tree: OctreeVolume):
         if self._distances is None:
             self._distances = tree
         else:
@@ -178,7 +181,7 @@ class Skeleton:
 
     # -----Inputing Skeleton Data-----
 
-    def input_nodes(self, nodes):
+    def input_nodes(self, nodes: List[Arbor.Node]):
         """
         build the tree by providing a list of nodes taken from another source
         (Usually another tree)
@@ -190,7 +193,7 @@ class Skeleton:
 
         self.build_tree(id_to_data)
 
-    def input_id_pairs(self, pairs):
+    def input_id_pairs(self, pairs: List[Tuple[int, int]]):
         """
         build the tree by providing a list of (nid, pid) pairs. This is sufficient
         to build an arbor.
@@ -198,7 +201,7 @@ class Skeleton:
         id_to_data = {nid: [self.arbor.Node(nid), pid, None] for nid, pid in pairs}
         self.build_tree(id_to_data)
 
-    def input_nid_pid_x_y_z(self, nodes):
+    def input_nid_pid_x_y_z(self, nodes: List[Tuple[int, int, float, float, float]]):
         """
         builds the arbor and initializes floodfilling regions with seed locations.
         """
@@ -208,7 +211,9 @@ class Skeleton:
         }
         self.build_tree(id_to_data)
 
-    def input_nid_pid_x_y_z_strahler(self, nodes):
+    def input_nid_pid_x_y_z_strahler(
+        self, nodes: List[Tuple[int, int, float, float, float, int]]
+    ):
         """
         builds the arbor with node coordinates and strahler indicies.
         """
@@ -222,7 +227,7 @@ class Skeleton:
         }
         self.build_tree(id_to_data)
 
-    def build_tree(self, id_to_data):
+    def build_tree(self, id_to_data: Dict[int, List[Arbor.Node, int, Region]]):
         """
         build the tree from an map of the form:
         id: node, pid, data
@@ -231,8 +236,8 @@ class Skeleton:
         """
         roots = []
         for nid, data in id_to_data.items():
-            node, pid, value = data
-            node.value = value
+            node, pid, region = data
+            node.value = region
             parent = None if nid == pid else id_to_data.get(pid, None)
             if parent is None:
                 roots.append(node)
@@ -245,13 +250,13 @@ class Skeleton:
             self.arbor.root = roots[sizes.index(max(sizes))]
         self.reset_arbor_props()
 
-    def is_filled(self, nid):
+    def is_filled(self, nid: int) -> bool:
         """
         Check if node has been filled.
         """
         return self.filled.get(nid, False)
 
-    def fill(self, nid, mask):
+    def fill(self, nid: int, mask: np.ndarray):
         """
         fill a node/region with a mask
         """
@@ -358,8 +363,10 @@ class Skeleton:
         Transform all data contained in the tree by translating and then scaling.
         """
         assert (
-            self.segmentation is None and self.segmentation_counts is None
-        ), "scaling segmentation data is not yet supported"
+            self._segmentation is None
+            and self._segmentation_counts is None
+            and self._distances is None
+        ), "scaling OctreeVolumes not yet supported"
         for node in self.get_nodes():
             node.value.transform(translation, scale)
         self.transform_properties()
@@ -530,7 +537,7 @@ class Skeleton:
 
     # -----Analyze Skeleton Data-----
 
-    def calculate_tree_bounds(self):
+    def calculate_tree_bounds(self) -> Bounds:
         """
         Find the minimum and maximum node center
         """
@@ -540,7 +547,7 @@ class Skeleton:
             if node.value is not None:
                 upper = np.maximum(node.value.center, upper)
                 lower = np.minimum(node.value.center, lower)
-        self._bounds = (lower.astype(int), upper.astype(int))
+        return (lower.astype(int), upper.astype(int))
 
     def create_octrees_from_nodes(
         self, tree_bounds=None, block_shape=None, nodes=None, dist=True
@@ -662,7 +669,7 @@ class Skeleton:
 
     def _similar_vectors(self, vec_a, vec_b):
         return False and (
-            self._angle_between(vec_a, vec_b) < .15
+            self._angle_between(vec_a, vec_b) < 0.15
             or abs(np.linalg.norm(vec_a) - np.linalg.norm(vec_b)) < 0.02
         )
 
@@ -971,9 +978,12 @@ class Skeleton:
 
         def dist_to_center(i, j, k, shape, resolution):
             i = (
-                (2 * (i - shape[0] // 2))  # scale: [0-shape-1] - [-shape-1, shape-1]
-                * resolution[0]  # scale up by resolution to get isotropic distances
-                / np.min(shape * resolution)  # scale shortest axis down to [-1,1]
+                # scale: [0-shape-1] - [-shape-1, shape-1]
+                (2 * (i - shape[0] // 2))
+                # scale up by resolution to get isotropic distances
+                * resolution[0]
+                # scale shortest axis down to [-1,1]
+                / np.min(shape * resolution)
             )
             j = (2 * (j - shape[1] // 2)) * resolution[1] / np.min(shape * resolution)
             k = (2 * (k - shape[2] // 2)) * resolution[2] / np.min(shape * resolution)
@@ -1138,7 +1148,7 @@ class Skeleton:
         return new_skeleton
 
     def resample_segment(self, nodes, delta, steps, sigma_fraction, new_node_id, root):
-        def get_smoothed(coords, steps=100, sigma_fraction=.001):
+        def get_smoothed(coords, steps=100, sigma_fraction=0.001):
             x_y_z = list(zip(*coords))
             t = np.linspace(0, 1, len(coords))
             t2 = np.linspace(0, 1, steps)
@@ -1198,7 +1208,7 @@ class Skeleton:
 
     def get_regularness(self):
         """
-        Get mean, std and outliers for distance between nodes. 
+        Get mean, std and outliers for distance between nodes.
         Determine whether skeleton needs to be resampled or not
         """
         raise NotImplementedError("not done yet")
