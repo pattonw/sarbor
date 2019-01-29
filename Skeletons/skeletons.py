@@ -3,9 +3,9 @@ import math
 from scipy.ndimage import gaussian_filter1d
 import time
 
-from .octrees import OctreeVolume
 from .arbors import Arbor
-from .fovs import Region
+from .nodes import Node, NodeData
+from .segmentations import Segmentation
 
 from typing import Tuple, Dict, List
 
@@ -16,51 +16,18 @@ Bounds = Tuple[np.ndarray, np.ndarray]
 class Skeleton:
     def __init__(self):
         # Data sources
-        self.arbor = Arbor()
-        self._segmentation = None
-        self._segmentation_counts = None
-        self._distances = None
-
-        # arbor dependent properties
-        self._bounds = None
-        self._node_map = None
+        self._arbor = Arbor()
+        self._seg = Segmentation()
+        self._nodes = NodeData()
 
         # tree specific properties
-        self._bounds = None
-        self._fov_shape = None
-        self._res = None
         self._sphere = None
 
         # floodfilling specific properties
         self.filled = {}
-        self.max_mass_v_mag = -1
 
-    def reset(self):
-        self.reset_data_sources()
-        self.reset_arbor_props()
-        self.reset_tree_props()
-        self.reset_floodfill_props()
-
-    def reset_data_sources(self):
-        self._segmentation = None
-        self._segmentation_counts = None
-        self._distances = None
-
-    def reset_arbor_props(self):
-        self._bounds = None
-        self._node_map = None
-
-    def reset_tree_props(self):
-        self._bounds = None
-        self._fov_shape = None
-        self._res = None
-        self._sphere = None
-
-    def reset_floodfill_props(self):
-        self.filled = {}
-        self.max_mass_v_mag = -1
-
-    def clone(self) -> "Skeleton":
+    def clone(self):
+        # TODO: this function is outdated
         new_skeleton = Skeleton()
         new_skeleton._fov_shape = self._fov_shape
         new_skeleton._res = self._res
@@ -69,13 +36,23 @@ class Skeleton:
 
     # -----PROPERTIES-----
     @property
+    def nodes(self) -> NodeData:
+        return self._nodes
+
+    @property
+    def seg(self) -> Segmentation:
+        return self._seg
+
+    @property
+    def arbor(self) -> Arbor:
+        return self._arbor
+
+    @property
     def node_bounds(self) -> Bounds:
         """
         Bounds containing all node centers
         """
-        if self._bounds is None:
-            self._bounds = self.calculate_tree_bounds()
-        return self._bounds
+        return self.nodes.node_bounds
 
     @property
     def region_bounds(self) -> Bounds:
@@ -89,95 +66,23 @@ class Skeleton:
 
     @property
     def resolution(self) -> np.ndarray:
-        if self._res is None:
-            raise Exception("The resolution has not been defined for this tree")
-        return self._res
+        return self.seg.res
 
     @resolution.setter
     def resolution(self, res: np.ndarray):
-        if self._res is None:
-            self._res = res
-        else:
-            raise Exception("Overwriting the skeletons resolution is not supported")
+        self.seg.res = res
 
     @property
     def fov_shape(self) -> np.ndarray:
-        if self._fov_shape is None:
-            raise Exception(
-                "The field of view dimensions have not been defined for this tree"
-            )
-        else:
-            return self._fov_shape
+        return self.seg.fov_shape
 
     @fov_shape.setter
     def fov_shape(self, shape: np.ndarray):
-        if self._fov_shape is None:
-            self._fov_shape = shape
-        else:
-            raise Exception("Overwriting the skeletons fov shape is not supported")
+        self.seg.fov_shape = shape
 
     @property
     def node_map(self) -> Dict[int, Arbor.Node]:
-        if self._node_map is None:
-            self._node_map = self.arbor.get_key_map()
-        return self._node_map
-
-    @property
-    def sphere(self) -> np.ndarray:
-        if self._sphere is None:
-            shape = self.fov_shape
-            res = self.resolution
-            self._sphere = self._create_sphere(shape, res)
-            return self._sphere
-        else:
-            return self._sphere
-
-    @property
-    def segmentation(self) -> OctreeVolume:
-        """
-        This octree contains counts of how many times a voxel was assigned
-        a value of "in" the desired volume.
-        """
-        if self._segmentation is None:
-            self.create_octrees_from_nodes()
-        return self._segmentation
-
-    @segmentation.setter
-    def segmentation(self, seg: OctreeVolume):
-        if self._segmentation is None:
-            self._segmentation = seg
-        else:
-            raise Exception("trying to overwrite segmentation octree")
-
-    @property
-    def segmentation_counts(self) -> OctreeVolume:
-        """
-        This octree is simply a volume where every voxel has a value
-        equal to the number of field of views containing it
-        """
-        if self._segmentation_counts is None:
-            self.create_octrees_from_nodes()
-        return self._segmentation_counts
-
-    @segmentation_counts.setter
-    def segmentation_counts(self, tree: OctreeVolume):
-        if self._segmentation_counts is None:
-            self._segmentation_counts = tree
-        else:
-            raise Exception("trying to overwrite segmentation_counts octree")
-
-    @property
-    def distances(self) -> OctreeVolume:
-        if self._distances is None:
-            self.create_octrees_from_nodes()
-        return self._distances
-
-    @distances.setter
-    def distances(self, tree: OctreeVolume):
-        if self._distances is None:
-            self._distances = tree
-        else:
-            raise Exception("trying to overwrite distances octree")
+        return self.nodes.node_map
 
     # -----Inputing Skeleton Data-----
 
@@ -206,7 +111,7 @@ class Skeleton:
         builds the arbor and initializes floodfilling regions with seed locations.
         """
         id_to_data = {
-            nid: [self.arbor.Node(nid), pid, Region(center=np.array([x, y, z]))]
+            nid: [self.arbor.Node(nid), pid, Node(center=np.array([x, y, z]))]
             for nid, pid, x, y, z in nodes
         }
         self.build_tree(id_to_data)
@@ -221,13 +126,13 @@ class Skeleton:
             nid: [
                 self.arbor.Node(nid, strahler=strahler),
                 pid,
-                Region(center=np.array([x, y, z])),
+                Node(center=np.array([x, y, z])),
             ]
             for nid, pid, x, y, z, strahler in nodes
         }
         self.build_tree(id_to_data)
 
-    def build_tree(self, id_to_data: Dict[int, List[Arbor.Node, int, Region]]):
+    def build_tree(self, id_to_data: Dict[int, List[Arbor.Node, int, Node]]):
         """
         build the tree from an map of the form:
         id: node, pid, data
@@ -265,96 +170,58 @@ class Skeleton:
         node.value.mask = mask
         self.filled[nid] = True
 
-    def input_masks(
-        self, data, axes=[2, 1, 0], c_o_m=True, tree_bounds=None, block_shape=None
-    ):
-        """
-        c_o_m: whether or not to calculate the center of mass vectors for individual nodes
-        """
-        if self.segmentation is None or self.segmentation_counts is None:
-            self.create_octrees(tree_bounds=tree_bounds, block_shape=block_shape)
-        for mask, bounds, nid, pid in data:
-            mask = mask.transpose(axes)
-            bounds = [[bound[axes[i]] for i in range(3)] for bound in bounds]
-            if c_o_m:
-                node = self.node_map[nid]
-                node.c_o_m = self._get_center_of_mass(node.mask * self.sphere)
-                self.max_mass_v_mag = max(
-                    self.max_mass_v_mag, node.value.center_of_mass[1]
-                )
-            self.segmentation[list(map(slice, bounds[0], bounds[1]))] += mask
-            self.segmentation_counts[list(map(slice, bounds[0], bounds[1]))] += 1
-        self.segmentation.bounds = self.segmentation.get_leaf_bounds()
-        self.segmentation_counts.bounds = self.segmentation_counts.get_leaf_bounds()
-
-    def input_masks_old(self, data):
-        """
-        input masks into the tree by providing a list of
-        datapoints of the form (mask, bounds, nid, pid)
-        TODO: This funciton should not need bounds or pids
-        Should also insert mask data into the Octrees instead
-        of nodes.
-        NOTE: Instead of nids and masks, assuming constant shaped input,
-        could aslo just take mask and bounds and insert into Octree.
-        """
-        id_to_data = {nid: [mask, bounds] for mask, bounds, nid, _ in data}
-        for node in self.arbor.traverse():
-            data = id_to_data.get(node.key, None)
-            if data is not None:
-                self.insert_data(node, data[1], data[0], [2, 1, 0])
-
-    def input_n5_data(self, folder_path, skeleton_dir, datasets):
-        """
-        Skips directly to filling out octrees with data without storing
-        any segmentation data in nodes. Useful when your analysis does
-        not depend on the individual contributions of each node
-        """
-        do_seg = "segmentation" in datasets
-        do_counts = "counts" in datasets
-        if do_seg or do_counts:
-            num_nodes = len(list(self.get_nodes()))
-            done_nodes = 0
-            section_bounds = None
-            for node in self.get_nodes(fifo=True):
-                node_bounds = (
-                    node.value.bounds
-                    if node.value.bounds is not None
-                    else node.value.get_bounds(self.fov_shape)
-                )
-                if section_bounds is None:
-                    section_bounds = node_bounds
-                combined_bounds = (
-                    np.minimum(section_bounds[0], node_bounds[0]),
-                    np.maximum(section_bounds[1], node_bounds[1]),
-                )
-                if all(combined_bounds[1] - combined_bounds[0] < self.fov_shape * 2):
-                    section_bounds = combined_bounds
-                    done_nodes += 1
-                else:
-                    if do_seg:
-                        self.segmentation.read_from_n5(
-                            folder_path, skeleton_dir + "/segmentation", section_bounds
-                        )
-                    if do_counts:
-                        self.segmentation_counts.read_from_n5(
-                            folder_path, skeleton_dir + "/counts", section_bounds
-                        )
-                    section_bounds = node_bounds
-                    done_nodes += 1
-                    print(
-                        "{}/{} ({:.2f}%) done".format(
-                            done_nodes, num_nodes, done_nodes / num_nodes * 100
-                        )
-                    )
-
-            if do_seg:
-                self.segmentation.read_from_n5(
-                    folder_path, skeleton_dir + "/segmentation", section_bounds
-                )
-            if do_counts:
-                self.segmentation_counts.read_from_n5(
-                    folder_path, skeleton_dir + "/counts", section_bounds
-                )
+    # def input_n5_data(self, folder_path, skeleton_dir, datasets):
+    #    """
+    #    Skips directly to filling out octrees with data without storing
+    #    any segmentation data in nodes. Useful when your analysis does
+    #    not depend on the individual contributions of each node
+    #    """
+    #    do_seg = "segmentation" in datasets
+    #    do_counts = "counts" in datasets
+    #    if do_seg or do_counts:
+    #        num_nodes = len(list(self.get_nodes()))
+    #        done_nodes = 0
+    #        section_bounds = None
+    #        for node in self.get_nodes(fifo=True):
+    #            node_bounds = (
+    #                node.value.bounds
+    #                if node.value.bounds is not None
+    #                else node.value.get_bounds(self.fov_shape)
+    #            )
+    #            if section_bounds is None:
+    #                section_bounds = node_bounds
+    #            combined_bounds = (
+    #                np.minimum(section_bounds[0], node_bounds[0]),
+    #                np.maximum(section_bounds[1], node_bounds[1]),
+    #            )
+    #            if all(combined_bounds[1] - combined_bounds[0] < self.fov_shape * 2):
+    #                section_bounds = combined_bounds
+    #                done_nodes += 1
+    #            else:
+    #                if do_seg:
+    #                    self.segmentation.read_from_n5(
+    #                        folder_path, skeleton_dir + "/segmentation", section_bounds
+    #                    )
+    #                if do_counts:
+    #                    self.segmentation_counts.read_from_n5(
+    #                        folder_path, skeleton_dir + "/counts", section_bounds
+    #                    )
+    #                section_bounds = node_bounds
+    #                done_nodes += 1
+    #                print(
+    #                    "{}/{} ({:.2f}%) done".format(
+    #                        done_nodes, num_nodes, done_nodes / num_nodes * 100
+    #                    )
+    #                )
+    #
+    #        if do_seg:
+    #            self.segmentation.read_from_n5(
+    #                folder_path, skeleton_dir + "/segmentation", section_bounds
+    #            )
+    #        if do_counts:
+    #            self.segmentation_counts.read_from_n5(
+    #                folder_path, skeleton_dir + "/counts", section_bounds
+    #            )
 
     # ----Editing Skeleton Data-----
 
@@ -405,28 +272,14 @@ class Skeleton:
     # -----Retrieving Skeleton Data-----
 
     def get_nodes(self, fifo=False):
-        return self.arbor.traverse(fifo=fifo)
+        return self.nodes.get_node(self.arbor.traverse(fifo=fifo))
 
-    def get_regions(self):
-        for node in self.get_nodes():
-            yield node.value
-
-    def get_interesting_nodes(self, root=False, leaves=False, branches=False):
-        """
-        This function extracts interesting nodes (root, leaves branches).
-        TODO: move this funciton into the Arbor class since physical
-        coordinates are irrelevant
-        """
-
-        if root or leaves or branches:
-            for node in self.arbor.traverse():
-                if root:
-                    root = False
-                    yield node
-                elif branches and len(node.get_neighbors()) > 2:
-                    yield node
-                elif leaves and len(node.get_neighbors()) == 1:
-                    yield node
+    def get_interesting_nodes(
+        self, root: bool = False, leaves: bool = False, branches: bool = False
+    ):
+        return self.arbor.get_interesting_nodes(
+            root=root, leaves=leaves, branches=branches
+        )
 
     def get_segments(self):
         """
@@ -439,9 +292,9 @@ class Skeleton:
         """
         get the smallest possible subtree containing all given ids
         """
-        all_nodes = self.arbor.get_minimal_subtree(ids)
+        sub_tree_nodes = self.arbor.get_minimal_subtree(ids)
         new_skeleton = self.clone()
-        new_skeleton.input_nodes(all_nodes)
+        new_skeleton.input_nodes(sub_tree_nodes)
         return new_skeleton
 
     def get_c_o_m_series(self):
@@ -465,152 +318,13 @@ class Skeleton:
         raise NotImplementedError
 
     def get_radius(self, node, radius):
-        """
-        get all nodes within a specific radius (physical distance) of a given node
-        radius can either be a scalar or a 3d value with axis wise distances
-        """
-        origin = node.value.center
-        all_nodes = [node]
-        previous = [node]
-        layer = node.get_neighbors()
-        while len(layer) > 0:
-            all_nodes += layer
-            next_layer = []
-            for node in layer:
-                neighbors = node.get_neighbors()
-                for neighbor in neighbors:
-                    if len(radius) == 1:
-                        if (
-                            neighbor not in previous
-                            and sum((neighbor.value.center - origin) ** 2) < radius ** 2
-                        ):
-                            next_layer.append(neighbor)
-                    elif len(radius) == 3:
-                        distance = abs(neighbor.value.center - origin)
-                        if neighbor not in previous and all(distance <= radius):
-                            next_layer.append(neighbor)
-            previous = layer[:]
-            layer = next_layer[:]
-        return all_nodes
+        return self.nodes.get_radius(node, radius)
 
     def get_radius_around_group(self, keys, radius):
-        """
-        TODO: Improve this, this searches for nodes in a radius around every given node
-        then combines the groups into one large group getting rid of redundencies
+        return self.nodes.get_radius_around_group(keys, radius)
 
-        Might be improved by having a single search that compares each node to see if they
-        are close to a list of numbers
-        """
-        big_radius = set()
-        centers = [self.node_map[key].value.center for key in keys]
-        for node in self.get_nodes():
-            for center in centers:
-                if all(abs(node.value.center - center) < radius):
-                    big_radius.add(node.key)
-                    break
-        return big_radius
-
-    def get_constrained_radius(self, node, max_x, max_y, max_z):
-        """
-        get all nodes with a change in z <= max_z etc.
-        """
-        origin = node.value.center
-        all_nodes = [node]
-        previous = [node]
-        layer = node.get_neighbors()
-        while len(layer) > 0:
-            all_nodes += layer
-            next_layer = []
-            for node in layer:
-                neighbors = node.get_neighbors()
-                for neighbor in neighbors:
-                    if neighbor not in previous and all(
-                        abs(np.array(neighbor.value.center) - np.array(origin)).astype(
-                            "int"
-                        )
-                        <= np.array([max_x, max_y, max_z])
-                    ):
-                        next_layer.append(neighbor)
-            previous = layer[:]
-            layer = next_layer[:]
-        return all_nodes
-
-    # -----Analyze Skeleton Data-----
-
-    def calculate_tree_bounds(self) -> Bounds:
-        """
-        Find the minimum and maximum node center
-        """
-        lower = np.array([float("inf"), float("inf"), float("inf")])
-        upper = -lower.copy()
-        for node in self.get_nodes():
-            if node.value is not None:
-                upper = np.maximum(node.value.center, upper)
-                lower = np.minimum(node.value.center, lower)
-        return (lower.astype(int), upper.astype(int))
-
-    def create_octrees_from_nodes(
-        self, tree_bounds=None, block_shape=None, nodes=None, dist=True
-    ):
-        def _dist_block(dimensions, resolution):
-            x = (
-                (
-                    np.linspace(-dimensions[0] // 2, dimensions[0] // 2, dimensions[0])
-                    * resolution[0]
-                )
-                ** 2
-            ).reshape(dimensions[0], 1, 1)
-            y = (
-                (
-                    np.linspace(-dimensions[1] // 2, dimensions[1] // 2, dimensions[1])
-                    * resolution[1]
-                )
-                ** 2
-            ).reshape(1, dimensions[1], 1)
-            z = (
-                (
-                    np.linspace(-dimensions[2] // 2, dimensions[2] // 2, dimensions[2])
-                    * resolution[2]
-                )
-                ** 2
-            ).reshape(1, 1, dimensions[2])
-            return (x + y + z) ** (0.5) / np.sum(
-                (dimensions // 2 * resolution) ** 2
-            ) ** (0.5)
-
-        def _data_populator(bounds):
-            return np.zeros(np.array(bounds[1]) - np.array(bounds[0]))
-
-        def _data_populator2(bounds):
-            return np.full(
-                np.array(bounds[1]) - np.array(bounds[0]), fill_value=float("inf")
-            )
-
-        self.segmentation = OctreeVolume(
-            self.fov_shape, self.region_bounds, np.uint8, _data_populator
-        )
-        self.segmentation_counts = OctreeVolume(
-            self.fov_shape, self.region_bounds, np.uint8, _data_populator
-        )
-        if dist:
-            self.distances = OctreeVolume(
-                self.fov_shape, self.region_bounds, float, _data_populator2
-            )
-            dist_block = _dist_block(self.fov_shape, self.resolution)
-
-        if nodes is None:
-            nodes = self.get_nodes()
-        for node in nodes:
-            node_bounds = node.value.get_bounds(self.fov_shape)
-
-            node_bounds = list(map(slice, node_bounds[0], node_bounds[1]))
-            if dist:
-                self.distances[node_bounds] = np.minimum(
-                    self.distances[node_bounds], dist_block
-                )
-            if node.value.mask is not None:
-                self.segmentation[node_bounds] += node.value.mask
-            self.segmentation_counts[node_bounds] += 1
+    def get_constrained_radius(self, node, dx, dy, dz):
+        return self.nodes.get_constrained_radius(node, dx, dy, dz)
 
     # -----Other-----
 
@@ -912,21 +626,6 @@ class Skeleton:
             ),
             (segment[0:2], segment[-1:-3:-1]),
         )
-
-    def save_data_n5(self, folder_path, dataset_path):
-        """
-        Save the data gathered in the n5 format.
-
-        dependent on pyn5 library which is expected to change a lot.
-        """
-        datasets = {
-            "segmentation": self.segmentation,
-            "counts": self.segmentation_counts,
-        }
-        for name, data in datasets.items():
-            print("Saving {} to n5!".format(name))
-            print("Num leaves = {}".format(len(list(data.iter_leaves()))))
-            data.write_to_n5(folder_path, dataset_path + "/" + name)
 
     @staticmethod
     def _get_center_of_mass(data):
