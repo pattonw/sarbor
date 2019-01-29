@@ -1,4 +1,3 @@
-
 from collections import deque
 
 
@@ -127,6 +126,17 @@ class Arbor:
             yield current
             for child in current.get_children():
                 queue.insert(0, child)
+
+    def get_interesting_nodes(self, root=False, leaves=False, branches=False):
+        if root or leaves or branches:
+            for node in self.arbor.traverse():
+                if root:
+                    root = False
+                    yield node
+                elif branches and len(node.get_neighbors()) > 2:
+                    yield node
+                elif leaves and len(node.get_neighbors()) == 1:
+                    yield node
 
     class Node:
         """
