@@ -662,7 +662,7 @@ class Skeleton:
 
     def _similar_vectors(self, vec_a, vec_b):
         return False and (
-            self._angle_between(vec_a, vec_b) < .15
+            self._angle_between(vec_a, vec_b) < 0.15
             or abs(np.linalg.norm(vec_a) - np.linalg.norm(vec_b)) < 0.02
         )
 
@@ -1133,12 +1133,12 @@ class Skeleton:
             branch_points[segment[-1].key] = new_interpolated_nodes[-1]
 
             new_tree_nodes = new_tree_nodes + new_interpolated_nodes
-        new_skeleton = self.new_skeleton()
+        new_skeleton = self.clone()
         new_skeleton.input_nid_pid_x_y_z(new_tree_nodes)
         return new_skeleton
 
     def resample_segment(self, nodes, delta, steps, sigma_fraction, new_node_id, root):
-        def get_smoothed(coords, steps=100, sigma_fraction=.001):
+        def get_smoothed(coords, steps=100, sigma_fraction=0.001):
             x_y_z = list(zip(*coords))
             t = np.linspace(0, 1, len(coords))
             t2 = np.linspace(0, 1, steps)
