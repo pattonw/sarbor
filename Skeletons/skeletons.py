@@ -3,9 +3,8 @@ import math
 from scipy.ndimage import gaussian_filter1d
 import time
 
-from .arbors import Arbor
-from .nodes import Node, NodeData
-from .segmentations import Segmentation
+from .arbors import SpatialArbor, NodeWithData
+from .segmentations import SegmentationSource
 
 from typing import Tuple, Dict, List
 
@@ -16,9 +15,8 @@ Bounds = Tuple[np.ndarray, np.ndarray]
 class Skeleton:
     def __init__(self):
         # Data sources
-        self._arbor = Arbor()
-        self._seg = Segmentation()
-        self._nodes = NodeData()
+        self._arbor = SpatialArbor()
+        self._seg = SegmentationSource()
 
         # tree specific properties
         self._sphere = None
@@ -36,15 +34,15 @@ class Skeleton:
 
     # -----PROPERTIES-----
     @property
-    def nodes(self) -> NodeData:
+    def nodes(self) -> Dict[int, NodeWithData]:
         return self._nodes
 
     @property
-    def seg(self) -> Segmentation:
+    def seg(self) -> SegmentationSource:
         return self._seg
 
     @property
-    def arbor(self) -> Arbor:
+    def arbor(self) -> SpatialArbor:
         return self._arbor
 
     @property
@@ -81,12 +79,12 @@ class Skeleton:
         self.seg.fov_shape = shape
 
     @property
-    def node_map(self) -> Dict[int, Arbor.Node]:
+    def node_map(self) -> Dict[int, NodeWithData]:
         return self.nodes.node_map
 
     # -----Inputing Skeleton Data-----
 
-    def input_nodes(self, nodes: List[Arbor.Node]):
+    def input_nodes(self, nodes: List[NodeWithData]):
         """
         build the tree by providing a list of nodes taken from another source
         (Usually another tree)
@@ -103,7 +101,7 @@ class Skeleton:
         build the tree by providing a list of (nid, pid) pairs. This is sufficient
         to build an arbor.
         """
-        id_to_data = {nid: [self.arbor.Node(nid), pid, None] for nid, pid in pairs}
+        id_to_data = {nid: {"nid": nid, "pid": pid} for nid, pid in pairs}
         self.build_tree(id_to_data)
 
     def input_nid_pid_x_y_z(self, nodes: List[Tuple[int, int, float, float, float]]):
@@ -111,7 +109,7 @@ class Skeleton:
         builds the arbor and initializes floodfilling regions with seed locations.
         """
         id_to_data = {
-            nid: [self.arbor.Node(nid), pid, Node(center=np.array([x, y, z]))]
+            nid: {"nid": nid, "pid": pid, "x": x, "y": y, "z": z}
             for nid, pid, x, y, z in nodes
         }
         self.build_tree(id_to_data)
@@ -123,16 +121,12 @@ class Skeleton:
         builds the arbor with node coordinates and strahler indicies.
         """
         id_to_data = {
-            nid: [
-                self.arbor.Node(nid, strahler=strahler),
-                pid,
-                Node(center=np.array([x, y, z])),
-            ]
+            nid: {"pid": pid, "x": x, "y": y, "z": z, "strahler": strahler}
             for nid, pid, x, y, z, strahler in nodes
         }
         self.build_tree(id_to_data)
 
-    def build_tree(self, id_to_data: Dict[int, List[Arbor.Node, int, Node]]):
+    def build_tree(self, id_to_data: Dict[int, Dict[str, int]]):
         """
         build the tree from an map of the form:
         id: node, pid, data

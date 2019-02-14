@@ -10,14 +10,14 @@ class Node:
     Basic Node datastructure, has basic getter and setter methods
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """
         node has only key, value, parent
         """
-        self._key = None
-        self._parent = None
-        self._children = None
-        self._strahler = None
+        self._key = kwargs.get("key", None)
+        self._parent = kwargs.get("parent", None)
+        self._children = kwargs.get("children", None)
+        self._strahler = kwargs.get("strahler", None)
 
     @property
     def key(self):
@@ -77,27 +77,27 @@ class Node:
             return self.children
 
     @property
-    def strahler(self):
+    def strahler(self) -> int:
         if self._strahler is not None:
             return self._strahler
         else:
-            self._calculate_strahler()
+            self._strahler = self._calculate_strahler()
             return self._strahler
 
     @strahler.setter
     def strahler(self, strahler):
         self._strahler = strahler
 
-    def is_root(self):
+    def is_root(self) -> bool:
         return self.parent is None
 
-    def is_branch(self):
+    def is_branch(self) -> bool:
         return len(self.children) > 1
 
-    def is_leaf(self):
+    def is_leaf(self) -> bool:
         return len(self.children) == 0
 
-    def _calculate_strahler(self):
+    def _calculate_strahler(self) -> int:
         if self.is_leaf():
             return 1
         child_strahlers = [child._strahler for child in self.get_children()]
@@ -277,26 +277,27 @@ class Arbor:
                     yield node
 
 
-class NodeWithData:
-        """
-    The NodeData class contains a center value in nm coordinate space and a mask
+class NodeWithData(Node):
+    """
+    The NodeWithData class contains a center value in nm coordinate space and a mask
     gathered via segmenting some region around that center.
-        """
+    """
 
     def __init__(self, center=None, mask=None):
-            """
+        """
         mask: np.array
-            """
+        """
+        super().__init__(self)
         self._center = center
         self._mask = mask
 
-        @property
+    @property
     def center(self) -> np.ndarray:
-            """
+        """
         Get the center of a region.
         Throws error if center is None
         TODO: Change constructor so that center cannot be None
-            """
+        """
         if self._center is None:
             raise Exception("No center available")
         else:
@@ -309,7 +310,7 @@ class NodeWithData:
         else:
             raise Exception("Overriding the center is not supported")
 
-        @property
+    @property
     def mask(self) -> np.ndarray:
         if self._mask is None:
             # mask can be None
@@ -325,9 +326,9 @@ class NodeWithData:
             raise Exception("Overriding the mask is not supported")
 
     def get_bounds(self, fov_shape: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-            """
+        """
         Note fov_shape should be in nm cubed
-            """
+        """
         return (self.center - fov_shape // 2, self.center + fov_shape // 2 + 1)
 
     def clone(self):
@@ -345,7 +346,7 @@ class SpatialArbor(Arbor):
         self._nodes = {}
         self._bounds = None
 
-        @property
+    @property
     def node_bounds(self) -> Bounds:
         """
         Bounds containing all node centers
@@ -354,17 +355,17 @@ class SpatialArbor(Arbor):
             self._bounds = self.calculate_tree_bounds()
         return self._bounds
 
-        @property
+    @property
     def nodes(self) -> Dict[int, Node]:
         if self._nodes is None:
             raise ValueError("No node data to retrieve!")
-                else:
+        else:
             return self._nodes.items()
 
     def calculate_tree_bounds(self) -> Bounds:
-            """
+        """
         Find the minimum and maximum node center
-            """
+        """
         lower = np.array([float("inf"), float("inf"), float("inf")])
         upper = -lower.copy()
         for nid, node in self.nodes.items():
@@ -374,10 +375,10 @@ class SpatialArbor(Arbor):
         return (lower.astype(int), upper.astype(int))
 
     def get_radius(self, node, radius):
-            """
+        """
         get all nodes within a specific radius (physical distance) of a given node
         radius can either be a scalar or a 3d value with axis wise distances
-            """
+        """
         origin = node.value.center
         all_nodes = [node]
         previous = [node]

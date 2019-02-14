@@ -5,7 +5,7 @@ import pickle
 
 from .octrees import OctreeVolume
 
-from nodes import NodeData
+from .arbors import SpatialArbor
 
 
 class SegmentationSource:
@@ -210,7 +210,7 @@ class SegmentationSource:
             0.5
         )
 
-    def create_octrees_from_nodes(self, node_data: NodeData, sphere: bool = True):
+    def create_octrees_from_nodes(self, node_data: SpatialArbor, sphere: bool = True):
         dist_block = self._dist_block(self.fov_shape, self.resolution)
         if sphere:
             dist_block[not self.sphere] = float("inf")
