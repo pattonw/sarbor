@@ -87,8 +87,7 @@ class Skeleton:
         """
         id_to_data = {}
         for node in nodes:
-            new_node, pid, value = node.clone()
-            id_to_data[new_node.key] = [new_node, pid, value]
+            id_to_data[node.key] = node.data()
 
         self.build_tree(id_to_data)
 
@@ -97,7 +96,7 @@ class Skeleton:
         build the tree by providing a list of (nid, pid) pairs. This is sufficient
         to build an arbor.
         """
-        id_to_data = {nid: {"nid": nid, "pid": pid} for nid, pid in pairs}
+        id_to_data = {nid: {"pid": pid} for nid, pid in pairs}
         self.build_tree(id_to_data)
 
     def input_nid_pid_x_y_z(self, nodes: List[Tuple[int, int, float, float, float]]):
@@ -105,7 +104,7 @@ class Skeleton:
         builds the arbor and initializes floodfilling regions with seed locations.
         """
         id_to_data = {
-            nid: {"nid": nid, "pid": pid, "center": np.array([x, y, z])}
+            nid: {"pid": pid, "center": np.array([x, y, z])}
             for nid, pid, x, y, z in nodes
         }
         self.build_tree(id_to_data)
@@ -136,6 +135,7 @@ class Skeleton:
                 key=nid,
                 strahler=data.get("strahler", None),
                 center=data.get("center", None),
+                mask=data.get("mask", None),
             )
         for nid, data in id_to_data.items():
             parent = None if nid == data["pid"] else nodes.get(data["pid"], None)
@@ -908,3 +908,11 @@ class Skeleton:
 
     def delete_branch(self, branch_chop: Tuple[int, int]):
         self.calculate_strahlers()
+        keep_node = self.arbor.nodes[branch_chop[0]]
+        new_root = keep_node
+        while new_root.parent is not None:
+            if new_root.parent_key is not branch_chop[1]:
+                new_root = new_root.parent
+
+        keep_nodes = new_root.traverse(ignore=[branch_chop[1]])
+
