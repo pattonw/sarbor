@@ -178,7 +178,7 @@ class Arbor:
         Initialize an empty tree
         """
         self.root = root
-        self._nodes: Dict[int, Node] = {}
+        self._nodes = {} # Dict[int, Node]
         if root is not None:
             self._nodes[root.key] = root
 
