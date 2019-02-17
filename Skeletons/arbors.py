@@ -106,6 +106,8 @@ class Node:
     @strahler.setter
     def strahler(self, strahler):
         self._strahler = strahler
+        if self.value is not None:
+            self.value.strahler = strahler
 
     def is_root(self) -> bool:
         return self.parent is None
@@ -178,7 +180,7 @@ class Arbor:
         Initialize an empty tree
         """
         self.root = root
-        self._nodes = {} # Dict[int, Node]
+        self._nodes = {}  # Dict[int, Node]
         if root is not None:
             self._nodes[root.key] = root
 
@@ -447,11 +449,6 @@ class SpatialArbor(Arbor):
                     big_radius.add(node.key)
                     break
         return big_radius
-
-    def calculate_strahler_indicies(self):
-        strahlers = Arbor.calculate_strahler_indicies(self)
-        for node, strahler in strahlers.items():
-            node.value.strahler = strahler
 
     def get_constrained_radius(self, node, dx, dy, dz):
         """

@@ -589,12 +589,7 @@ class Skeleton:
         np.savetxt("{}.csv".format(output_file), data, delimiter=",", fmt="%s")
 
     def calculate_strahlers(self):
-        queue = []
-        for node in self.get_nodes():
-            queue.append(node)
-        while len(queue) > 0:
-            current = queue.pop()
-            current._calculate_strahler()
+        self.arbor.calculate_strahler_indicies()
 
     def split(self, segment):
         seg_root = segment[0]
@@ -910,3 +905,6 @@ class Skeleton:
         Determine whether skeleton needs to be resampled or not
         """
         raise NotImplementedError("not done yet")
+
+    def delete_branch(self, branch_chop: Tuple[int, int]):
+        self.calculate_strahlers()
