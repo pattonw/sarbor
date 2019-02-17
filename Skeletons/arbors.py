@@ -385,13 +385,20 @@ class NodeData:
         """
         return (self.center - fov_shape // 2, self.center + fov_shape // 2 + 1)
 
-    @property
-    def data(self):
-        return {"mask": self.mask, "center": self.center}
+    def clone_center(self):
+        if self.center is not None:
+            return self.center.clone()
+        else:
+            return None
+
+    def clone_mask(self):
+        if self.mask is not None:
+            return self.mask.clone()
+        else:
+            return None
 
     def clone(self):
-        node_copy = type(self)(center=self._center.clone(), mask=self._mask.clone())
-        return node_copy
+        return {"mask": self.clone_mask(), "center": self.clone_center()}
 
 
 class SpatialArbor(Arbor):
