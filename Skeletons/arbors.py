@@ -361,11 +361,7 @@ class NodeData:
         if self.center is None:
             self.data["center"] = center
         else:
-            raise Exception(
-                "Overriding the center is not supported, center is currently: {}".format(
-                    self.center
-                )
-            )
+            print("Overriding the center {} with {}".format(self.center, center))
 
     @property
     def mask(self) -> Optional[np.ndarray]:
