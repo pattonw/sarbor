@@ -354,7 +354,7 @@ class NodeData:
         if c is None:
             return None
         else:
-            return c.astype(int)
+            return c
 
     @center.setter
     def center(self, center: np.ndarray):

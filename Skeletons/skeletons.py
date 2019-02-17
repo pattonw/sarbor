@@ -6,7 +6,7 @@ import time
 from .arbors import SpatialArbor, Node
 from .segmentations import SegmentationSource
 
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Any
 
 
 Bounds = Tuple[np.ndarray, np.ndarray]
@@ -121,7 +121,7 @@ class Skeleton:
         }
         self.build_tree(id_to_data)
 
-    def build_tree(self, id_to_data: Dict[int, Dict[str, int]]):
+    def build_tree(self, id_to_data: Dict[int, Dict[str, Any]]):
         """
         build the tree from an map of the form:
         id: node, pid, data
