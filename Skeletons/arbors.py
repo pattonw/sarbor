@@ -1,6 +1,6 @@
 from collections import deque
 import numpy as np
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Optional, Any
 
 Bounds = Tuple[np.ndarray, np.ndarray]
 
@@ -18,6 +18,9 @@ class Node:
         self._parent = kwargs.get("parent", None)
         self._children = kwargs.get("children", None)
         self._strahler = kwargs.get("strahler", None)
+        self._value = kwargs.get("value", None)
+        self.value.center = kwargs.get("center", None)
+        self.value.mask = kwargs.get("mask", None)
 
     @property
     def key(self):
@@ -33,6 +36,22 @@ class Node:
     def key(self, key):
         if self._key is None:
             self._key = key
+        else:
+            raise ValueError("Overwriting node keys is not supported")
+
+    @property
+    def value(self):
+        """
+        A unique identifier for this Node
+        """
+        if self._value is None:
+            self._value = NodeData()
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        if self._value is None:
+            self._value = value
         else:
             raise ValueError("Overwriting node keys is not supported")
 
@@ -60,11 +79,11 @@ class Node:
         else:
             raise ValueError("Overwriting node parents is not supported")
 
-    def get_children(self):
-        return self.children
-
-    def set_children(self, children):
-        self.children = children
+    @property
+    def children(self):
+        if self._children is None:
+            self._children = []
+        return self._children
 
     def add_child(self, child):
         self.children.append(child)
@@ -92,34 +111,41 @@ class Node:
         return self.parent is None
 
     def is_branch(self) -> bool:
-        return len(self.children) > 1
+        return len(self.get_neighbors()) > 2
 
     def is_leaf(self) -> bool:
         return len(self.children) == 0
 
+    def is_regular(self) -> bool:
+        normal = len(self.get_neighbors()) == 2
+        if normal:
+            assert not (self.is_branch() or self.is_leaf())
+        return normal
+
     def _calculate_strahler(self) -> int:
         if self.is_leaf():
             return 1
-        child_strahlers = [child._strahler for child in self.get_children()]
+        child_strahlers = [child._strahler for child in self.children]
         if any([strahler is None for strahler in child_strahlers]):
             raise ValueError("A child did not have a strahler index")
-        max_strahler, count = 1, 0
-        for strahler in child_strahlers:
-            if strahler > max_strahler:
-                max_strahler, count = strahler, 1
-            elif strahler == max_strahler:
+        max_child_strahler, count = 1, 0
+        for child_strahler in child_strahlers:
+            if child_strahler > max_child_strahler:
+                max_child_strahler, count = child_strahler, 1
+            elif child_strahler == max_child_strahler:
                 count += 1
         if count > 1:
-            return max_strahler + 1
+            return max_child_strahler + 1
         else:
-            return max_strahler
+            return max_child_strahler
 
-    def get_data(self):
+    @property
+    def data(self):
         """
         Return all the information necessary to build a clone of this node
         (key, parent_key, strahler).
         """
-        return (self.key, self.parent_key, self.strahler)
+        return (self.key, self.parent_key, self.value.data)
 
     def get_following(self, previous):
         """
@@ -147,17 +173,31 @@ class Arbor:
     individual nodes.
     """
 
-    def __init__(self, root=None):
+    def __init__(self, root: Node = None):
         """
         Initialize an empty tree
         """
         self.root = root
+        self._nodes: Dict[int, Node] = {}
+        if root is not None:
+            self._nodes[root.key] = root
 
-    def search(self, key):
+    def search(self, key: int) -> Node:
         for node in self.traverse():
             if key == node.get_key():
                 return node
         raise Exception("node {0} does not exist".format(key))
+
+    @property
+    def nodes(self) -> Dict[int, Node]:
+        if self._nodes is None:
+            self._nodes = {}
+        return self._nodes
+
+    def build_from_root(self, root: Node):
+        self.root = root
+        for node in self.traverse():
+            self.nodes[node.key] = node
 
     def get_key_map(self):
         key_map = {}
@@ -251,23 +291,23 @@ class Arbor:
         queue = deque([self.root])
 
         while len(queue) > 0:
-            current = queue.popleft()
+            current = queue.pop()
             yield current
-            for child in current.get_children():
-                queue.append(child)
+            for child in current.children:
+                queue.appendleft(child)
 
     def depth_first_traversal(self):
         queue = deque([self.root])
 
         while len(queue) > 0:
-            current = queue.popleft()
+            current = queue.pop()
             yield current
-            for child in current.get_children():
-                queue.insert(0, child)
+            for child in current.children:
+                queue.append(child)
 
     def get_interesting_nodes(self, root=False, leaves=False, branches=False):
         if root or leaves or branches:
-            for node in self.arbor.traverse():
+            for node in self.traverse():
                 if root:
                     root = False
                     yield node
@@ -277,51 +317,51 @@ class Arbor:
                     yield node
 
 
-class NodeWithData(Node):
+class NodeData:
     """
-    The NodeWithData class contains a center value in nm coordinate space and a mask
-    gathered via segmenting some region around that center.
+    Contains the data for a node
     """
 
-    def __init__(self, center=None, mask=None):
-        """
-        mask: np.array
-        """
-        super().__init__(self)
-        self._center = center
-        self._mask = mask
+    def __init__(self, data=None):
+        self._data = data
+
+    @property
+    def data(self) -> Dict[str, Any]:
+        if self._data is None:
+            self._data = {}
+        return self._data
 
     @property
     def center(self) -> np.ndarray:
         """
         Get the center of a region.
-        Throws error if center is None
-        TODO: Change constructor so that center cannot be None
         """
-        if self._center is None:
-            raise Exception("No center available")
+        c = self.data.get("center", None)
+        if c is None:
+            return [None, None, None]
         else:
-            return self._center.astype(int)
+            return c.astype(int)
 
     @center.setter
     def center(self, center: np.ndarray):
-        if self._center is None:
-            self._center = center
+        if self.data.get("center", None) is None:
+            self.data["center"] = center
         else:
             raise Exception("Overriding the center is not supported")
 
     @property
-    def mask(self) -> np.ndarray:
-        if self._mask is None:
+    def mask(self) -> Optional[np.ndarray]:
+        m = self.data.get("mask", None)
+        if m is None:
             # mask can be None
             return None
         else:
-            return self._mask
+            return m
 
     @mask.setter
     def mask(self, mask: np.ndarray):
-        if self._mask is None:
-            self._mask = mask
+        if self.data.get("mask", None) is None:
+            self.data["mask"] = mask
         else:
             raise Exception("Overriding the mask is not supported")
 
@@ -343,7 +383,6 @@ class SpatialArbor(Arbor):
 
     def __init__(self):
         Arbor.__init__(self)
-        self._nodes = {}
         self._bounds = None
 
     @property
@@ -354,13 +393,6 @@ class SpatialArbor(Arbor):
         if self._bounds is None:
             self._bounds = self.calculate_tree_bounds()
         return self._bounds
-
-    @property
-    def nodes(self) -> Dict[int, Node]:
-        if self._nodes is None:
-            raise ValueError("No node data to retrieve!")
-        else:
-            return self._nodes.items()
 
     def calculate_tree_bounds(self) -> Bounds:
         """
@@ -416,6 +448,11 @@ class SpatialArbor(Arbor):
                     break
         return big_radius
 
+    def calculate_strahler_indicies(self):
+        strahlers = Arbor.calculate_strahler_indicies(self)
+        for node, strahler in strahlers.items():
+            node.value.strahler = strahler
+
     def get_constrained_radius(self, node, dx, dy, dz):
         """
         get all nodes with a change in z <= max_z etc.
@@ -440,3 +477,14 @@ class SpatialArbor(Arbor):
             previous = layer[:]
             layer = next_layer[:]
         return all_nodes
+
+    def calculate_strahler_indicies(self):
+        strahler_indicies = {}
+        node_queue = deque()
+        for node in self.breadth_first_traversal():
+            node_queue.append(node)
+        while len(node_queue) > 0:
+            current = node_queue.pop()
+            current.strahler = current._calculate_strahler()
+            strahler_indicies[current] = current.strahler
+        return strahler_indicies

@@ -3,7 +3,7 @@ import math
 from scipy.ndimage import gaussian_filter1d
 import time
 
-from .arbors import SpatialArbor, NodeWithData
+from .arbors import SpatialArbor, Node
 from .segmentations import SegmentationSource
 
 from typing import Tuple, Dict, List
@@ -34,8 +34,8 @@ class Skeleton:
 
     # -----PROPERTIES-----
     @property
-    def nodes(self) -> Dict[int, NodeWithData]:
-        return self._nodes
+    def nodes(self) -> Dict[int, Node]:
+        return self.arbor.nodes
 
     @property
     def seg(self) -> SegmentationSource:
@@ -50,7 +50,7 @@ class Skeleton:
         """
         Bounds containing all node centers
         """
-        return self.nodes.node_bounds
+        return self.arbor.node_bounds
 
     @property
     def region_bounds(self) -> Bounds:
@@ -78,13 +78,9 @@ class Skeleton:
     def fov_shape(self, shape: np.ndarray):
         self.seg.fov_shape = shape
 
-    @property
-    def node_map(self) -> Dict[int, NodeWithData]:
-        return self.nodes.node_map
-
     # -----Inputing Skeleton Data-----
 
-    def input_nodes(self, nodes: List[NodeWithData]):
+    def input_nodes(self, nodes: List[Node]):
         """
         build the tree by providing a list of nodes taken from another source
         (Usually another tree)
@@ -109,7 +105,7 @@ class Skeleton:
         builds the arbor and initializes floodfilling regions with seed locations.
         """
         id_to_data = {
-            nid: {"nid": nid, "pid": pid, "x": x, "y": y, "z": z}
+            nid: {"nid": nid, "pid": pid, "center": np.array([x, y, z])}
             for nid, pid, x, y, z in nodes
         }
         self.build_tree(id_to_data)
@@ -121,7 +117,7 @@ class Skeleton:
         builds the arbor with node coordinates and strahler indicies.
         """
         id_to_data = {
-            nid: {"pid": pid, "x": x, "y": y, "z": z, "strahler": strahler}
+            nid: {"pid": pid, "center": np.array([x, y, z]), "strahler": strahler}
             for nid, pid, x, y, z, strahler in nodes
         }
         self.build_tree(id_to_data)
@@ -133,21 +129,30 @@ class Skeleton:
         Thus we can add edges to nodes to build the tree
         TODO: move node creation into this funciton so we just need id: pid, data maps
         """
-        roots = []
+        roots: List[Node] = []
+        nodes: Dict[int, Node] = {}
         for nid, data in id_to_data.items():
-            node, pid, region = data
-            node.value = region
-            parent = None if nid == pid else id_to_data.get(pid, None)
+            nodes[nid] = Node(
+                key=nid,
+                strahler=data.get("strahler", None),
+                center=data.get("center", None),
+            )
+        for nid, data in id_to_data.items():
+            parent = None if nid == data["pid"] else nodes.get(data["pid"], None)
             if parent is None:
-                roots.append(node)
+                roots.append(nodes[nid])
             else:
-                parent[0].add_child(node)
+                parent.add_child(nodes[nid])
         if len(roots) == 1:
-            self.arbor.root = roots[0]
+            self.arbor.build_from_root(roots[0])
         else:
             sizes = [len(list(node.traverse())) for node in roots]
-            self.arbor.root = roots[sizes.index(max(sizes))]
-        self.reset_arbor_props()
+            print(
+                "Warning: {} nodes not included in tree!".format(
+                    sum(sizes) - max(sizes)
+                )
+            )
+            self.arbor.build_from_root(roots[sizes.index(max(sizes))])
 
     def is_filled(self, nid: int) -> bool:
         """
@@ -159,7 +164,7 @@ class Skeleton:
         """
         fill a node/region with a mask
         """
-        node = self.node_map[nid]
+        node = self.nodes[nid]
 
         node.value.mask = mask
         self.filled[nid] = True
@@ -266,7 +271,7 @@ class Skeleton:
     # -----Retrieving Skeleton Data-----
 
     def get_nodes(self, fifo=False):
-        return self.nodes.get_node(self.arbor.traverse(fifo=fifo))
+        return list(self.arbor.nodes.values())
 
     def get_interesting_nodes(
         self, root: bool = False, leaves: bool = False, branches: bool = False
@@ -395,7 +400,7 @@ class Skeleton:
         smoothed_map = {}
 
         for nid in nid_score_map:
-            node = self.node_map[nid]
+            node = self.nodes[nid]
             neighbors = node.get_neighbors()
             combined_vec = np.sum(
                 [
@@ -427,7 +432,7 @@ class Skeleton:
         """
         # Assumes Two halves of the neuron do not come near each other
         large_radius = [
-            self.node_map[key]
+            self.nodes[key]
             for key in self.get_radius_around_group(close_nodes, self.fov_shape)
         ]
         t1 = time.time()
@@ -444,7 +449,7 @@ class Skeleton:
 
         t1 = time.time()
         small_radius_scores = self.get_nid_branch_score_map(
-            nodes=[self.node_map[key] for key in close_nodes],
+            nodes=[self.nodes[key] for key in close_nodes],
             sphere=sphere,
             mass=mass,
             incrDenom=incrDenom,

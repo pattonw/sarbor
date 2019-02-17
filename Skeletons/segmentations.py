@@ -24,7 +24,7 @@ class SegmentationSource:
     For a speed up consider using extra memory to store them together in ram
     """
 
-    def __init__(self, constants: Dict[str, Any]):
+    def __init__(self, constants: Dict[str, Any] = {}):
         self._constants = constants
         self._sphere = None
 
