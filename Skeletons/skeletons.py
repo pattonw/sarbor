@@ -129,8 +129,8 @@ class Skeleton:
         Thus we can add edges to nodes to build the tree
         TODO: move node creation into this funciton so we just need id: pid, data maps
         """
-        roots: List[Node] = []
-        nodes: Dict[int, Node] = {}
+        roots = []  # List[Node]
+        nodes = {}  # Dict[int, Node]
         for nid, data in id_to_data.items():
             nodes[nid] = Node(
                 key=nid,
