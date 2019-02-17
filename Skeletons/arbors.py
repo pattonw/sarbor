@@ -18,9 +18,9 @@ class Node:
         self._parent = kwargs.get("parent", None)
         self._children = kwargs.get("children", None)
         self._strahler = kwargs.get("strahler", None)
-        self._value = kwargs.get("value", None)
-        self.value.center = kwargs.get("center", None)
-        self.value.mask = kwargs.get("mask", None)
+        self._value = NodeData(
+            center=kwargs.get("center", None), mask=kwargs.get("mask", None)
+        )
 
     @property
     def key(self):
