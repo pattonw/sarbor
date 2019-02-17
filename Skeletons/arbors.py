@@ -1,6 +1,6 @@
 from collections import deque
 import numpy as np
-from typing import Tuple, Dict, Optional, Any
+from typing import Tuple, Dict, Optional, Any, List
 
 Bounds = Tuple[np.ndarray, np.ndarray]
 
@@ -147,7 +147,10 @@ class Node:
         Return all the information necessary to build a clone of this node
         (key, parent_key, strahler).
         """
-        return (self.key, self.parent_key, self.value.data)
+        data = {"nid": self.key, "pid": self.parent_key, "strahler": self.strahler}
+        if self.value is not None:
+            data.update(self.value.data())
+        return data
 
     def get_following(self, previous):
         """
@@ -165,6 +168,15 @@ class Node:
             return neighbors
         else:
             raise Exception("This node has {} neighbors".format(len(neighbors)))
+
+    def traverse(self, ignore: Optional[List[int]] = None):
+        queue = deque([self])
+        while len(queue) > 0:
+            current = queue.pop()
+            yield current
+            for child in current.children:
+                if ignore is None or child.key not in ignore:
+                    queue.append(child)
 
 
 class Arbor:
@@ -289,23 +301,25 @@ class Arbor:
             if last is not None:
                 last = node
 
-    def breadth_first_traversal(self):
+    def breadth_first_traversal(self, ignore: Optional[List[int]] = None):
         queue = deque([self.root])
 
         while len(queue) > 0:
             current = queue.pop()
             yield current
             for child in current.children:
-                queue.appendleft(child)
+                if ignore is not None and child.key not in ignore:
+                    queue.appendleft(child)
 
-    def depth_first_traversal(self):
+    def depth_first_traversal(self, ignore: Optional[List[int]] = None):
         queue = deque([self.root])
 
         while len(queue) > 0:
             current = queue.pop()
             yield current
             for child in current.children:
-                queue.append(child)
+                if ignore is not None and child.key not in ignore:
+                    queue.append(child)
 
     def get_interesting_nodes(self, root=False, leaves=False, branches=False):
         if root or leaves or branches:
@@ -324,13 +338,11 @@ class NodeData:
     Contains the data for a node
     """
 
-    def __init__(self, data=None):
+    def __init__(self, data: Dict[str, Any] = {}):
         self._data = data
 
     @property
     def data(self) -> Dict[str, Any]:
-        if self._data is None:
-            self._data = {}
         return self._data
 
     @property
@@ -340,7 +352,7 @@ class NodeData:
         """
         c = self.data.get("center", None)
         if c is None:
-            return [None, None, None]
+            return None
         else:
             return c.astype(int)
 
@@ -372,6 +384,10 @@ class NodeData:
         Note fov_shape should be in nm cubed
         """
         return (self.center - fov_shape // 2, self.center + fov_shape // 2 + 1)
+
+    @property
+    def data(self):
+        return {"mask": self.mask, "center": self.center}
 
     def clone(self):
         node_copy = type(self)(center=self._center.clone(), mask=self._mask.clone())
