@@ -87,7 +87,7 @@ class Skeleton:
         """
         id_to_data = {}
         for node in nodes:
-            id_to_data[node.key] = node.data()
+            id_to_data[node.key] = node.data
 
         self.build_tree(id_to_data)
 
@@ -964,4 +964,30 @@ class Skeleton:
                 new_root = new_root.parent
 
         keep_nodes = new_root.traverse(ignore=[branch_chop[1]])
+        new_skeleton = Skeleton()
+        new_skeleton.input_nodes(keep_nodes)
+        print(
+            "Original skeleton size {} vs new skeleton size {}".format(
+                len(new_skeleton.get_nodes()), len(self.get_nodes())
+            )
+        )
+        return new_skeleton
+
+    def delete_segment(self, segment_chop: Tuple[int, int]):
+        self.calculate_strahlers()
+        keep_node = self.arbor.nodes[segment_chop[0]]
+        new_root = keep_node
+        while new_root.parent is not None:
+            if new_root.parent_key is not segment_chop[1]:
+                new_root = new_root.parent
+
+        keep_nodes = new_root.traverse(ignore=[segment_chop[1]])
+        new_skeleton = Skeleton()
+        new_skeleton.input_nodes(keep_nodes)
+        print(
+            "Original skeleton size {} vs new skeleton size {}".format(
+                len(new_skeleton.get_nodes()), len(self.get_nodes())
+            )
+        )
+        return new_skeleton
 

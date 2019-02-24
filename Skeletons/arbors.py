@@ -149,7 +149,7 @@ class Node:
         """
         data = {"nid": self.key, "pid": self.parent_key, "strahler": self.strahler}
         if self.value is not None:
-            data.update(self.value.data())
+            data.update(self.value.data)
         return data
 
     def get_following(self, previous):
@@ -308,7 +308,7 @@ class Arbor:
             current = queue.pop()
             yield current
             for child in current.children:
-                if ignore is not None and child.key not in ignore:
+                if ignore is None or child.key not in ignore:
                     queue.appendleft(child)
 
     def depth_first_traversal(self, ignore: Optional[List[int]] = None):
@@ -318,7 +318,7 @@ class Arbor:
             current = queue.pop()
             yield current
             for child in current.children:
-                if ignore is not None and child.key not in ignore:
+                if ignore is None or child.key not in ignore:
                     queue.append(child)
 
     def get_interesting_nodes(self, root=False, leaves=False, branches=False):
@@ -338,8 +338,8 @@ class NodeData:
     Contains the data for a node
     """
 
-    def __init__(self, data: Dict[str, Any] = {}):
-        self._data = data
+    def __init__(self, **kwargs):
+        self._data = kwargs
 
     @property
     def data(self) -> Dict[str, Any]:
