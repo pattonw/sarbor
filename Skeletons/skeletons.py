@@ -250,6 +250,7 @@ class Skeleton:
         """
         filtered_nodes = []
         lower, upper = bounds
+        num_filtered = 0
         for node in self.get_nodes():
             if (
                 lower[0] <= node.value.center[0] < upper[0]
@@ -266,7 +267,10 @@ class Skeleton:
                         node.strahler,
                     )
                 )
-        return self.input_nid_pid_x_y_z_strahler(filtered_nodes)
+            else:
+                num_filtered += 1
+        self.input_nid_pid_x_y_z_strahler(filtered_nodes)
+        return num_filtered
 
     # -----Retrieving Skeleton Data-----
 
@@ -412,6 +416,49 @@ class Skeleton:
             smoothed_map[nid] = combined_vec, np.linalg.norm(combined_vec)
         return smoothed_map
 
+    def get_sub_nid_branch_scores(
+        self,
+        full_mask,
+        all_scores,
+        smooth=True,
+        sphere=True,
+        incrDenom=True,
+        mass=True,
+        DEBUG=None,
+    ):
+        nodes = []
+        skipped = 0
+        for node in self.get_nodes():
+            node_bounds = node.value.get_bounds(self.fov_shape)
+            node_bounds = list(map(slice, node_bounds[0], node_bounds[1]))
+            sub_mask = self.segmentation[node_bounds]
+            whole_mask = full_mask[node_bounds]
+            if (
+                not np.array_equal(sub_mask, whole_mask)
+                or tuple(node.value.center) not in all_scores
+            ):
+                nodes.append(node)
+            else:
+                skipped += 1
+        print("{}/{} nodes recalculated".format(len(nodes), skipped + len(nodes)))
+        small_radius_scores = self.get_nid_branch_score_map(
+            nodes=nodes, sphere=sphere, mass=mass, incrDenom=incrDenom
+        )
+
+        sub_nid_branch_score_map = {}
+        for node in self.get_nodes():
+            if node.key in small_radius_scores:
+                sub_nid_branch_score_map[node.key] = small_radius_scores[node.key]
+            else:
+                sub_nid_branch_score_map[node.key] = all_scores[
+                    tuple(node.value.center)
+                ]
+
+        if smooth:
+            sub_nid_branch_score_map = self._smooth_scores(sub_nid_branch_score_map)
+
+        return sub_nid_branch_score_map
+
     def get_sub_nid_branch_score_map(
         self,
         close_nodes,
@@ -477,7 +524,7 @@ class Skeleton:
         return sub_nid_branch_score_map
 
     def get_nid_branch_score_map(
-        self, nodes=None, sphere=True, mass=False, incrDenom=True, consenus=True
+        self, nodes=None, sphere=True, mass=False, incrDenom=True, consenus=True, key=""
     ):
         """
         Create a map from node ids to branch scores. Nodes can then be sorted
@@ -526,12 +573,14 @@ class Skeleton:
                 / np.prod(self.fov_shape)
             )
             """
-
-            nid_score_map[node.key] = (direction, mag)
+            if key == "location":
+                nid_score_map[tuple(node.value.center)] = (direction, mag)
+            else:
+                nid_score_map[node.key] = (direction, mag)
             if any(np.isnan(x) for x in direction):
                 raise ValueError("Direction is NAN!")
 
-        if consenus:
+        if consenus and not key == "location":
             nid_score_map = self._smooth_scores(nid_score_map)
 
         return nid_score_map
