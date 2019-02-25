@@ -92,7 +92,7 @@ class SegmentationSource:
         """
         Resolution for each voxel in the segmentation in X,Y,Z order
         """
-        return self.original_resolution * self.downsample_scale
+        return self.resolution_phys * self.downsample_factor
 
     @property
     def fov_shape_voxels(self) -> np.ndarray:

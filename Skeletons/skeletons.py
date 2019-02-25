@@ -885,7 +885,7 @@ class Skeleton:
             branch_points[segment[-1].key] = new_interpolated_nodes[-1]
 
             new_tree_nodes = new_tree_nodes + new_interpolated_nodes
-        new_skeleton = self.new_skeleton()
+        new_skeleton = self.clone()
         new_skeleton.input_nid_pid_x_y_z(new_tree_nodes)
         return new_skeleton
 
