@@ -331,6 +331,8 @@ class SegmentationSource:
             mask[np.logical_not(sphere)] = False
         if np.isnan(mask).any():
             raise ValueError("boolean_mask contains NAN!")
+        if np.isinf(mask).any():
+            raise ValueError("boolean_mask contains INF!")
         return mask
 
     def _boolean_mask(self, bounds: List[slice]) -> np.ndarray:
@@ -345,6 +347,8 @@ class SegmentationSource:
             mask[np.logical_not(sphere)] = 0
         if np.isnan(mask).any():
             raise ValueError("dist_weighted_boolean_mask contains NAN!")
+        if np.isinf(mask).any():
+            raise ValueError("dist_weighted_boolean_mask contains INF!")
         return mask
 
     def _dist_weighted_boolean_mask(self, bounds: List[slice]):
@@ -359,6 +363,8 @@ class SegmentationSource:
             mask[np.logical_not(sphere)] = 0
         if np.isnan(mask).any():
             raise ValueError("view_weighted_mask contains NAN!")
+        if np.isinf(mask).any():
+            raise ValueError("view_weighted_mask contains INF!")
         return mask
 
     def _view_weighted_mask(
@@ -375,6 +381,8 @@ class SegmentationSource:
             mask[np.logical_not(sphere)] = 0
         if np.isnan(mask).any():
             raise ValueError("dist_view_weighted_mask contains NAN!")
+        if np.isinf(mask).any():
+            raise ValueError("dist_view_weighted_mask contains INF!")
         return mask
 
     def _dist_view_weighted_mask(self, bounds: List[slice]) -> np.ndarray:
