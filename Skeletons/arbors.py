@@ -239,12 +239,12 @@ class Arbor:
 
         while len(queue) > 0:
             root = queue.popleft()
-            for child in root.get_children():
+            for child in root.children:
                 segment = [root]
                 current = child
                 while True:
                     segment.append(current)
-                    next_nodes = current.get_children()
+                    next_nodes = current.children
                     if len(next_nodes) == 0:
                         break
                     elif len(next_nodes) > 1:
