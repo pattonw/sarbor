@@ -282,15 +282,11 @@ class SegmentationSource:
                 bounds[1] // self.voxel_resolution,
             )
 
-    def boolean_mask(self, bounds: Tuple[np.ndarray, np.ndarray]) -> np.ndarray:
-        voxel_bounds = self.transform_bounds(bounds, slices=True)
-        return self.segmentation_counts[voxel_bounds] > 0
-
     @staticmethod
     def _slices(bounds: Tuple[Iterable[int], Iterable[int]]):
         return list(map(slice, bounds[0], bounds[1]))
 
-    def get_roi(self, center: np.ndarray) -> Tuple:
+    def get_roi(self, center: np.ndarray) -> Tuple[Iterable[int], Iterable[int]]:
         voxel_shape = self.voxel_resolution
         fov_shape = self.fov_shape_phys
         center_block = center - center % voxel_shape
@@ -304,17 +300,37 @@ class SegmentationSource:
         )
         return start, end
 
+    def boolean_mask(self, center: np.ndarray) -> np.ndarray:
+        bounds = self._slices(self.get_roi(center))
+        return self.segmentation_counts[bounds] > 0
+
+    def _boolean_mask(self, bounds: Tuple[np.ndarray, np.ndarray]) -> np.ndarray:
+        return self.segmentation_counts[bounds] > 0
+
     def dist_weighted_boolean_mask(self, center: np.ndarray) -> np.ndarray:
-        voxel_bounds = self._slices(self.get_roi(center))
-        return self.boolean_mask(voxel_bounds) * self.distances[voxel_bounds]
+        bounds = self._slices(self.get_roi(center))
+        return self._dist_weighted_boolean_mask(bounds)
+
+    def _dist_weighted_boolean_mask(self, bounds: Tuple[np.ndarray, np.ndarray]):
+        return self._boolean_mask(bounds) * self.distances[bounds]
 
     def view_weighted_mask(self, center: np.ndarray, incr_denom: int = 1) -> np.ndarray:
-        voxel_bounds = self._slices(self.get_roi(center))
-        return self.segmentation_counts[voxel_bounds] / (
-            self.segmentation_views[voxel_bounds] + incr_denom
+        bounds = self._slices(self.get_roi(center))
+        return self._view_weighted_mask(bounds, incr_denom=incr_denom)
+
+    def _view_weighted_mask(
+        self, bounds: Tuple[np.ndarray, np.ndarray], incr_denom: int = 1
+    ) -> np.ndarray:
+        return self.segmentation_counts[bounds] / (
+            self.segmentation_views[bounds] + incr_denom
         )
 
     def dist_view_weighted_mask(self, center: np.ndarray) -> np.ndarray:
-        voxel_bounds = self._slices(self.get_roi(center))
-        return self.view_weighted_mask(voxel_bounds, 1) * self.distances[voxel_bounds]
+        bounds = self._slices(self.get_roi(center))
+        return self._dist_view_weighted_mask(bounds)
+
+    def _dist_view_weighted_mask(
+        self, bounds: Tuple[np.ndarray, np.ndarray]
+    ) -> np.ndarray:
+        return self._view_weighted_mask(bounds, 1) * self.distances[bounds]
 
