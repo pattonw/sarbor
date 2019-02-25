@@ -337,10 +337,11 @@ class SegmentationSource:
         return start, end
 
     def boolean_mask(self, center: np.ndarray, sphere=False) -> np.ndarray:
-        if sphere:
-            raise NotImplementedError("TODO")
         bounds = self._slices(self.get_roi(center))
-        return self.segmentation_counts[bounds] > 0
+        mask = self.segmentation_counts[bounds] > 0
+        if sphere:
+            mask[np.logical_not(sphere)] = False
+        return mask
 
     def _boolean_mask(self, bounds: Tuple[np.ndarray, np.ndarray]) -> np.ndarray:
         return self.segmentation_counts[bounds] > 0
@@ -348,10 +349,11 @@ class SegmentationSource:
     def dist_weighted_boolean_mask(
         self, center: np.ndarray, sphere=False
     ) -> np.ndarray:
-        if sphere:
-            raise NotImplementedError("TODO")
         bounds = self._slices(self.get_roi(center))
-        return self._dist_weighted_boolean_mask(bounds)
+        mask = self._dist_weighted_boolean_mask(bounds)
+        if sphere:
+            mask[np.logical_not(sphere)] = 0
+        return mask
 
     def _dist_weighted_boolean_mask(self, bounds: Tuple[np.ndarray, np.ndarray]):
         return self._boolean_mask(bounds) * self.distances[bounds]
@@ -359,10 +361,11 @@ class SegmentationSource:
     def view_weighted_mask(
         self, center: np.ndarray, incr_denom: int = 1, sphere=False
     ) -> np.ndarray:
-        if sphere:
-            raise NotImplementedError("TODO")
         bounds = self._slices(self.get_roi(center))
-        return self._view_weighted_mask(bounds, incr_denom=incr_denom)
+        mask = self._view_weighted_mask(bounds, incr_denom=incr_denom)
+        if sphere:
+            mask[np.logical_not(sphere)] = 0
+        return mask
 
     def _view_weighted_mask(
         self, bounds: Tuple[np.ndarray, np.ndarray], incr_denom: int = 1
@@ -372,10 +375,11 @@ class SegmentationSource:
         )
 
     def dist_view_weighted_mask(self, center: np.ndarray, sphere=False) -> np.ndarray:
-        if sphere:
-            raise NotImplementedError("TODO")
         bounds = self._slices(self.get_roi(center))
-        return self._dist_view_weighted_mask(bounds)
+        mask = self._dist_view_weighted_mask(bounds)
+        if sphere:
+            mask[np.logical_not(sphere)] = 0
+        return mask
 
     def _dist_view_weighted_mask(
         self, bounds: Tuple[np.ndarray, np.ndarray]
