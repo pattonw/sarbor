@@ -329,7 +329,7 @@ class SegmentationSource:
         mask = self.segmentation_counts[bounds] > 0
         if sphere:
             mask[np.logical_not(sphere)] = False
-        if any(np.isnan(mask)):
+        if np.isnan(mask).any():
             raise ValueError("boolean_mask contains NAN!")
         return mask
 
@@ -343,7 +343,7 @@ class SegmentationSource:
         mask = self._dist_weighted_boolean_mask(bounds)
         if sphere:
             mask[np.logical_not(sphere)] = 0
-        if any(np.isnan(mask)):
+        if np.isnan(mask).any():
             raise ValueError("dist_weighted_boolean_mask contains NAN!")
         return mask
 
@@ -357,7 +357,7 @@ class SegmentationSource:
         mask = self._view_weighted_mask(bounds, incr_denom=incr_denom)
         if sphere:
             mask[np.logical_not(sphere)] = 0
-        if any(np.isnan(mask)):
+        if np.isnan(mask).any():
             raise ValueError("view_weighted_mask contains NAN!")
         return mask
 
@@ -373,8 +373,7 @@ class SegmentationSource:
         mask = self._dist_view_weighted_mask(bounds)
         if sphere:
             mask[np.logical_not(sphere)] = 0
-        print(np.isnan(mask))
-        if any(np.isnan(mask)):
+        if np.isnan(mask).any():
             raise ValueError("dist_view_weighted_mask contains NAN!")
         return mask
 
