@@ -70,7 +70,7 @@ class SegmentationSource:
         nanometers per voxel in X,Y,Z order in original image space
         default: 4, 4, 40
         """
-        return self._constants.get("original_resolution", np.array(4, 4, 40))
+        return self._constants.get("original_resolution", np.array([4, 4, 40]))
 
     @property
     def seg_phys_bounds(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -85,7 +85,7 @@ class SegmentationSource:
         """
         Downsample for each axis in X,Y,Z order
         """
-        return self._constants.get("downsample_scale", np.array(10, 10, 1))
+        return self._constants.get("downsample_scale", np.array([10, 10, 1]))
 
     @property
     def voxel_resolution(self) -> np.ndarray:
