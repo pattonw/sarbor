@@ -536,12 +536,9 @@ class Skeleton:
 
         for node in nodes:
             mask = self.get_dist_weighted_mask(
-                list(
-                    map(
-                        slice,
-                        node.value.center - self.fov_shape // 2,
-                        node.value.center + self.fov_shape // 2 + 1,
-                    )
+                (
+                    node.value.center - self.fov_shape // 2,
+                    node.value.center + self.fov_shape // 2 + 1,
                 ),
                 increment_denominator=incrDenom,
             )
@@ -775,34 +772,14 @@ class Skeleton:
     def get_dist_weighted_mask(
         self, bounds, min_overlap_count=1, increment_denominator=False
     ):
-        mask = self.get_count_weighted_mask(
-            bounds, min_overlap_count, increment_denominator
-        )
-
-        dist = self.distances
-        distances = dist[bounds]
-
-        mask = mask * np.nan_to_num(distances)
-        return mask
+        return self.seg.dist_view_weighted_mask(bounds)
 
     def get_count_weighted_mask(
         self, bounds, min_overlap_count=1, increment_denominator=False
     ):
-        segmentation = self.segmentation
-        counts = self.segmentation_counts
-
-        mask = segmentation[bounds].astype(float)
-        seg_counts = counts[bounds].astype(float)
-        if increment_denominator:
-            mask = mask / (seg_counts + 1)
-
-        else:
-            mask[mask < min_overlap_count] = 0
-            mask[mask >= min_overlap_count] = (
-                mask[mask >= min_overlap_count] / seg_counts[mask >= min_overlap_count]
-            )
-
-        return mask
+        return self.seg.view_weighted_mask(
+            bounds, incr_denom=int(increment_denominator)
+        )
 
     def calculate_center_of_mass_vects(self):
         sphere = None
