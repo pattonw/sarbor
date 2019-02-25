@@ -536,11 +536,7 @@ class Skeleton:
 
         for node in nodes:
             mask = self.get_dist_weighted_mask(
-                (
-                    node.value.center - self.fov_shape // 2,
-                    node.value.center + self.fov_shape // 2 + 1,
-                ),
-                increment_denominator=incrDenom,
+                node.value.center, increment_denominator=incrDenom
             )
             if sphere:
                 mask = mask * self.sphere
