@@ -18,16 +18,12 @@ class Skeleton:
         self._arbor = SpatialArbor()
         self._seg = SegmentationSource()
 
-        # tree specific properties
-        self._sphere = None
-
         # floodfilling specific properties
         self.filled = {}
 
     def clone(self):
         # TODO: this function is outdated
         new_skeleton = Skeleton()
-        new_skeleton._sphere = self._sphere
         return new_skeleton
 
     # -----PROPERTIES-----
@@ -329,23 +325,6 @@ class Skeleton:
 
     # -----Other-----
 
-    def recalculate_center_of_mass(self):
-        """
-        Calculate the center of mass for each node
-        """
-        for node in self.get_nodes():
-            node.c_o_m = self._get_center_of_mass(node.mask * self.sphere)
-
-    def get_scaled_center_of_mass(self, node):
-        """
-        retrieve the center of mass of a node, scaled down by the max of the tree
-        """
-        center_of_mass = node.value.center_of_mass
-        if center_of_mass is not None:
-            return center_of_mass[0], center_of_mass[1] / self.max_mass_v_mag
-        else:
-            return None
-
     def get_strahlers_from(self, other):
         """
         Copy strahlers from another tree.
@@ -481,7 +460,7 @@ class Skeleton:
             for key in self.get_radius_around_group(close_nodes, self.fov_shape)
         ]
         t1 = time.time()
-        self.create_octrees_from_nodes(nodes=large_radius)
+        self.seg.create_octrees_from_nodes(nodes=large_radius)
         t2 = time.time()
         if DEBUG == "TIME":
             print(
@@ -536,10 +515,8 @@ class Skeleton:
 
         for node in nodes:
             mask = self.get_dist_weighted_mask(
-                node.value.center, increment_denominator=incrDenom
+                node.value.center, increment_denominator=incrDenom, sphere=sphere
             )
-            if sphere:
-                mask = mask * self.sphere
 
             if mass:
                 direction, mag = self._get_center_of_mass(mask)
@@ -698,38 +675,6 @@ class Skeleton:
                 direction = v / mag
             return (direction, mag)
 
-    @staticmethod
-    def _create_sphere(shape, resolution):
-        """
-        Create a roughly isotropic shpere constrained in the bounds of shape to
-        avoid letting non-isotropic data bias calculations.
-
-        Especially important when detecting missing branches since we want to be
-        able to detect branches in the z direction, and not let them get over powered by
-        the extended view range in the x-y directions
-        """
-
-        def dist_to_center(i, j, k, shape, resolution):
-            i = (
-                # scale: [0-shape-1] - [-shape-1, shape-1]
-                (2 * (i - shape[0] // 2))
-                # scale up by resolution to get isotropic distances
-                * resolution[0]
-                # scale shortest axis down to [-1,1]
-                / np.min(shape * resolution)
-            )
-            j = (2 * (j - shape[1] // 2)) * resolution[1] / np.min(shape * resolution)
-            k = (2 * (k - shape[2] // 2)) * resolution[2] / np.min(shape * resolution)
-            return (i ** 2 + j ** 2 + k ** 2) ** (0.5)
-
-        sphere = np.ones(shape)
-        for i in range(shape[0]):
-            for j in range(shape[1]):
-                for k in range(shape[2]):
-                    if dist_to_center(i, j, k, shape, resolution) > 1:
-                        sphere[i, j, k] = 0
-        return sphere
-
     def get_connection(self, index_a, index_b):
         a2b_matrix = self.get_count_weighted_mask(
             list(
@@ -766,29 +711,24 @@ class Skeleton:
         return costs[-1, -1, -1]
 
     def get_dist_weighted_mask(
-        self, center: np.ndarray, min_overlap_count=1, increment_denominator=False
-    ):
-        return self.seg.dist_view_weighted_mask(center)
+        self,
+        center: np.ndarray,
+        min_overlap_count=1,
+        increment_denominator=False,
+        sphere=True,
+    ) -> np.ndarray:
+        return self.seg.dist_view_weighted_mask(center, sphere=sphere)
 
     def get_count_weighted_mask(
-        self, center: np.ndarray, min_overlap_count=1, increment_denominator=False
-    ):
+        self,
+        center: np.ndarray,
+        min_overlap_count=1,
+        increment_denominator=False,
+        sphere=True,
+    ) -> np.ndarray:
         return self.seg.view_weighted_mask(
-            center, incr_denom=int(increment_denominator)
+            center, incr_denom=int(increment_denominator), sphere=sphere
         )
-
-    def calculate_center_of_mass_vects(self):
-        sphere = None
-        for node in self.get_nodes():
-            mask = node.value.mask
-            if mask is None:
-                continue
-            data = np.copy(mask)
-            if sphere is None:
-                sphere = self._create_sphere(data.shape)
-            data[sphere == 0] = 0
-            direction, mag = self._get_center_of_mass(data)
-            self.input_center_of_mass(node, (direction, mag))
 
     def resample_segments(self, delta, steps, sigma_fraction):
         """

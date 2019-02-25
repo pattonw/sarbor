@@ -186,6 +186,38 @@ class SegmentationSource:
         return self._distances
 
     @staticmethod
+    def _create_sphere(shape, resolution):
+        """
+        Create a roughly isotropic shpere constrained in the bounds of shape to
+        avoid letting non-isotropic data bias calculations.
+
+        Especially important when detecting missing branches since we want to be
+        able to detect branches in the z direction, and not let them get over powered by
+        the extended view range in the x-y directions
+        """
+
+        def dist_to_center(i, j, k, shape, resolution):
+            i = (
+                # scale: [0-shape-1] - [-shape-1, shape-1]
+                (2 * (i - shape[0] // 2))
+                # scale up by resolution to get isotropic distances
+                * resolution[0]
+                # scale shortest axis down to [-1,1]
+                / np.min(shape * resolution)
+            )
+            j = (2 * (j - shape[1] // 2)) * resolution[1] / np.min(shape * resolution)
+            k = (2 * (k - shape[2] // 2)) * resolution[2] / np.min(shape * resolution)
+            return (i ** 2 + j ** 2 + k ** 2) ** (0.5)
+
+        sphere = np.ones(shape)
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                for k in range(shape[2]):
+                    if dist_to_center(i, j, k, shape, resolution) > 1:
+                        sphere[i, j, k] = 0
+        return sphere
+
+    @staticmethod
     def _dist_block(dimensions, resolution):
         x = (
             (
@@ -302,21 +334,31 @@ class SegmentationSource:
         )
         return start, end
 
-    def boolean_mask(self, center: np.ndarray) -> np.ndarray:
+    def boolean_mask(self, center: np.ndarray, sphere=False) -> np.ndarray:
+        if sphere:
+            raise NotImplementedError("TODO")
         bounds = self._slices(self.get_roi(center))
         return self.segmentation_counts[bounds] > 0
 
     def _boolean_mask(self, bounds: Tuple[np.ndarray, np.ndarray]) -> np.ndarray:
         return self.segmentation_counts[bounds] > 0
 
-    def dist_weighted_boolean_mask(self, center: np.ndarray) -> np.ndarray:
+    def dist_weighted_boolean_mask(
+        self, center: np.ndarray, sphere=False
+    ) -> np.ndarray:
+        if sphere:
+            raise NotImplementedError("TODO")
         bounds = self._slices(self.get_roi(center))
         return self._dist_weighted_boolean_mask(bounds)
 
     def _dist_weighted_boolean_mask(self, bounds: Tuple[np.ndarray, np.ndarray]):
         return self._boolean_mask(bounds) * self.distances[bounds]
 
-    def view_weighted_mask(self, center: np.ndarray, incr_denom: int = 1) -> np.ndarray:
+    def view_weighted_mask(
+        self, center: np.ndarray, incr_denom: int = 1, sphere=False
+    ) -> np.ndarray:
+        if sphere:
+            raise NotImplementedError("TODO")
         bounds = self._slices(self.get_roi(center))
         return self._view_weighted_mask(bounds, incr_denom=incr_denom)
 
@@ -327,7 +369,9 @@ class SegmentationSource:
             self.segmentation_views[bounds] + incr_denom
         )
 
-    def dist_view_weighted_mask(self, center: np.ndarray) -> np.ndarray:
+    def dist_view_weighted_mask(self, center: np.ndarray, sphere=False) -> np.ndarray:
+        if sphere:
+            raise NotImplementedError("TODO")
         bounds = self._slices(self.get_roi(center))
         return self._dist_view_weighted_mask(bounds)
 
