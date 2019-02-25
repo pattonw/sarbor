@@ -252,7 +252,7 @@ class SegmentationSource:
             dist_block[np.logical_not(self.sphere)] = float("inf")
 
         for node in nodes:
-            node_bounds = self._slices(self.get_roi(node.value.center))
+            node_bounds = self.transform_bounds(self.get_roi(node.value.center))
             if node.value.mask is not None:
                 self.segmentation_views[node_bounds] += node.value.mask
             self.segmentation_counts[node_bounds] += 1
@@ -318,10 +318,6 @@ class SegmentationSource:
                 bounds[1] // self.voxel_resolution,
             )
 
-    @staticmethod
-    def _slices(bounds: Tuple[Iterable[int], Iterable[int]]):
-        return list(map(slice, bounds[0], bounds[1]))
-
     def get_roi(self, center: np.ndarray) -> Tuple[Iterable[int], Iterable[int]]:
         voxel_shape = self.voxel_resolution
         fov_shape = self.fov_shape_phys
@@ -337,7 +333,7 @@ class SegmentationSource:
         return start, end
 
     def boolean_mask(self, center: np.ndarray, sphere=False) -> np.ndarray:
-        bounds = self._slices(self.get_roi(center))
+        bounds = self.transform_bounds(self.get_roi(center))
         mask = self.segmentation_counts[bounds] > 0
         if sphere:
             mask[np.logical_not(sphere)] = False
@@ -349,7 +345,7 @@ class SegmentationSource:
     def dist_weighted_boolean_mask(
         self, center: np.ndarray, sphere=False
     ) -> np.ndarray:
-        bounds = self._slices(self.get_roi(center))
+        bounds = self.transform_bounds(self.get_roi(center))
         mask = self._dist_weighted_boolean_mask(bounds)
         if sphere:
             mask[np.logical_not(sphere)] = 0
@@ -361,7 +357,7 @@ class SegmentationSource:
     def view_weighted_mask(
         self, center: np.ndarray, incr_denom: int = 1, sphere=False
     ) -> np.ndarray:
-        bounds = self._slices(self.get_roi(center))
+        bounds = self.transform_bounds(self.get_roi(center))
         mask = self._view_weighted_mask(bounds, incr_denom=incr_denom)
         if sphere:
             mask[np.logical_not(sphere)] = 0
@@ -375,7 +371,7 @@ class SegmentationSource:
         )
 
     def dist_view_weighted_mask(self, center: np.ndarray, sphere=False) -> np.ndarray:
-        bounds = self._slices(self.get_roi(center))
+        bounds = self.transform_bounds(self.get_roi(center))
         mask = self._dist_view_weighted_mask(bounds)
         if sphere:
             mask[np.logical_not(sphere)] = 0
