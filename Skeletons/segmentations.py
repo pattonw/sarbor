@@ -329,14 +329,15 @@ class SegmentationSource:
         mask = self.segmentation_counts[bounds] > 0
         if sphere:
             mask[np.logical_not(sphere)] = False
+        return mask
+
+    def _boolean_mask(self, bounds: List[slice]) -> np.ndarray:
+        mask = self.segmentation_counts[bounds] > 0
         if np.isnan(mask).any():
             raise ValueError("boolean_mask contains NAN!")
         if np.isinf(mask).any():
             raise ValueError("boolean_mask contains INF!")
         return mask
-
-    def _boolean_mask(self, bounds: List[slice]) -> np.ndarray:
-        return self.segmentation_counts[bounds] > 0
 
     def dist_weighted_boolean_mask(
         self, center: np.ndarray, sphere=False
@@ -345,14 +346,15 @@ class SegmentationSource:
         mask = self._dist_weighted_boolean_mask(bounds)
         if sphere:
             mask[np.logical_not(sphere)] = 0
+        return mask
+
+    def _dist_weighted_boolean_mask(self, bounds: List[slice]):
+        mask = self._boolean_mask(bounds) * self.distances[bounds]
         if np.isnan(mask).any():
             raise ValueError("dist_weighted_boolean_mask contains NAN!")
         if np.isinf(mask).any():
             raise ValueError("dist_weighted_boolean_mask contains INF!")
         return mask
-
-    def _dist_weighted_boolean_mask(self, bounds: List[slice]):
-        return self._boolean_mask(bounds) * self.distances[bounds]
 
     def view_weighted_mask(
         self, center: np.ndarray, incr_denom: int = 1, sphere=False
@@ -361,30 +363,32 @@ class SegmentationSource:
         mask = self._view_weighted_mask(bounds, incr_denom=incr_denom)
         if sphere:
             mask[np.logical_not(sphere)] = 0
+        return mask
+
+    def _view_weighted_mask(
+        self, bounds: List[slice], incr_denom: int = 1
+    ) -> np.ndarray:
+        mask = self.segmentation_counts[bounds] / (
+            self.segmentation_views[bounds] + incr_denom
+        )
         if np.isnan(mask).any():
             raise ValueError("view_weighted_mask contains NAN!")
         if np.isinf(mask).any():
             raise ValueError("view_weighted_mask contains INF!")
         return mask
 
-    def _view_weighted_mask(
-        self, bounds: List[slice], incr_denom: int = 1
-    ) -> np.ndarray:
-        return self.segmentation_counts[bounds] / (
-            self.segmentation_views[bounds] + incr_denom
-        )
-
     def dist_view_weighted_mask(self, center: np.ndarray, sphere=False) -> np.ndarray:
         bounds = self.transform_bounds(self.get_roi(center))
         mask = self._dist_view_weighted_mask(bounds)
         if sphere:
             mask[np.logical_not(sphere)] = 0
+        return mask
+
+    def _dist_view_weighted_mask(self, bounds: List[slice]) -> np.ndarray:
+        mask = self._view_weighted_mask(bounds, 1) * self.distances[bounds]
         if np.isnan(mask).any():
             raise ValueError("dist_view_weighted_mask contains NAN!")
         if np.isinf(mask).any():
             raise ValueError("dist_view_weighted_mask contains INF!")
         return mask
-
-    def _dist_view_weighted_mask(self, bounds: List[slice]) -> np.ndarray:
-        return self._view_weighted_mask(bounds, 1) * self.distances[bounds]
 
