@@ -246,7 +246,7 @@ class SegmentationSource:
             0.5
         )
 
-    def create_octrees_from_nodes(self, nodes: Iterable[Node], sphere: bool = True):
+    def create_octrees_from_nodes(self, nodes: Iterable[Node], sphere: bool = False):
         dist_block = self._dist_block(self.fov_shape_voxels, self.voxel_resolution)
         if sphere:
             dist_block[np.logical_not(self.sphere)] = float("inf")

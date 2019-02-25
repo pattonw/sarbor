@@ -385,12 +385,14 @@ class Skeleton:
             neighbors = node.get_neighbors()
             combined_vec = np.sum(
                 [
-                    nid_score_map[n.key][0] * nid_score_map[n.key][1]
+                    nid_score_map[n.key][0]
+                    * nid_score_map[n.key][1]
+                    / np.linalg.norm(nid_score_map[n.key][0])
                     for n in neighbors + [node]
                 ],
                 axis=0,
             ) / (len(neighbors) + 1)
-            smoothed_map[nid] = combined_vec, np.linalg.norm(combined_vec)
+            smoothed_map[nid] = nid_score_map[nid][0], np.linalg.norm(combined_vec)
         return smoothed_map
 
     def get_sub_nid_branch_scores(
@@ -642,19 +644,24 @@ class Skeleton:
 
     @staticmethod
     def _get_max_vec(data):
+        """
+        Returns the offset to get the most likely position for a missing branch
+        allong with a "score" that ranks how likely this position is to
+        be a missing branch. 
+        the "score" factors in confidence of segmentation at that point
+        pluss distance to previously seen nodes
+        """
         v = np.unravel_index(np.argmax(data), data.shape)
         if np.isclose(data[v], 0):
             return np.array([0, 0, 0]), 0
         else:
-            v = (v - np.array(data.shape) // 2) / (np.array(data.shape) // 2)
-            mag = (
+            v = v - np.array(data.shape) // 2
+            score = (
                 np.linalg.norm(v)
                 / (np.linalg.norm(np.array(data.shape)) // 2)
                 * np.max(data)
             )
-            if not np.isclose(mag, 0):
-                direction = v / mag
-            return (direction, mag)
+            return (v, score)
 
     def get_connection(self, index_a, index_b):
         a2b_matrix = self.get_count_weighted_mask(
