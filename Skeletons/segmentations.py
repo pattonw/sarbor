@@ -5,7 +5,7 @@ import pickle
 
 from .octrees import OctreeVolume
 
-from .arbors import SpatialArbor
+from .arbors import Node
 
 
 class SegmentationSource:
@@ -153,7 +153,6 @@ class SegmentationSource:
                 np.uint8,
                 self._data_populator_factory(0, np.uint8),
             )
-            self.create_octrees_from_nodes()
         return self._segmentation_views
 
     @property
@@ -163,13 +162,12 @@ class SegmentationSource:
         a value of "in" the desired volume.
         """
         if self._segmentation_counts is None:
-            self.segmentation_counts = OctreeVolume(
+            self._segmentation_counts = OctreeVolume(
                 self.fov_shape_voxels,
                 self.seg_voxel_bounds,
                 np.uint8,
                 self._data_populator_factory(0, np.uint8),
             )
-            self.create_octrees_from_nodes()
         return self._segmentation_counts
 
     @property
@@ -179,13 +177,12 @@ class SegmentationSource:
         sample point.
         """
         if self._distances is None:
-            self.distances = OctreeVolume(
+            self._distances = OctreeVolume(
                 self.fov_shape_voxels,
                 self.seg_voxel_bounds,
                 float,
                 self._data_populator_factory(float("inf"), float),
             )
-            self.create_octrees_from_nodes()
         return self._distances
 
     @staticmethod
@@ -215,13 +212,13 @@ class SegmentationSource:
             0.5
         )
 
-    def create_octrees_from_nodes(self, node_data: SpatialArbor, sphere: bool = True):
-        dist_block = self._dist_block(self.fov_shape, self.resolution)
+    def create_octrees_from_nodes(self, nodes: Iterable[Node], sphere: bool = True):
+        dist_block = self._dist_block(self.fov_shape_voxels, self.voxel_resolution)
         if sphere:
             dist_block[not self.sphere] = float("inf")
 
-        for nid, node in node_data.nodes.items():
-            node_bounds = node.value.get_bounds(self.fov_shape, slices=True)
+        for node in nodes:
+            node_bounds = self._slices(self.get_roi(node.value.center))
             if node.value.mask is not None:
                 self.segmentation_views[node_bounds] += node.value.mask
             self.segmentation_counts[node_bounds] += 1
