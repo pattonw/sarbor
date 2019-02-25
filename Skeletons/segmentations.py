@@ -249,7 +249,7 @@ class SegmentationSource:
     def create_octrees_from_nodes(self, nodes: Iterable[Node], sphere: bool = True):
         dist_block = self._dist_block(self.fov_shape_voxels, self.voxel_resolution)
         if sphere:
-            dist_block[not self.sphere] = float("inf")
+            dist_block[np.logical_not(self.sphere)] = float("inf")
 
         for node in nodes:
             node_bounds = self._slices(self.get_roi(node.value.center))
