@@ -349,7 +349,7 @@ class SegmentationSource:
         return mask
 
     def _dist_weighted_boolean_mask(self, bounds: List[slice]):
-        mask = self._boolean_mask(bounds) * self.distances[bounds]
+        mask = self._boolean_mask(bounds) * self._distance_mask(bounds)
         if np.isnan(mask).any():
             raise ValueError("dist_weighted_boolean_mask contains NAN!")
         if np.isinf(mask).any():
@@ -385,10 +385,16 @@ class SegmentationSource:
         return mask
 
     def _dist_view_weighted_mask(self, bounds: List[slice]) -> np.ndarray:
-        mask = self._view_weighted_mask(bounds, 1) * self.distances[bounds]
+        mask = self._view_weighted_mask(bounds, 1) * self._distance_mask(bounds)
         if np.isnan(mask).any():
             raise ValueError("dist_view_weighted_mask contains NAN!")
         if np.isinf(mask).any():
             raise ValueError("dist_view_weighted_mask contains INF!")
         return mask
+
+    def _distance_mask(self, bounds: List[slice]) -> np.ndarray:
+        distances = self.distances[bounds]
+        print(np.isinf(distances).sum() / np.prod(distances.shape))
+        distances[np.isinf(distances)] = 0
+        return distances
 
