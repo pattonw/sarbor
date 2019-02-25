@@ -288,9 +288,7 @@ class SegmentationSource:
             folder_path, "distances", self.shape_voxel
         )
 
-    def transform_bounds(
-        self, bounds: Tuple[np.ndarray, np.ndarray], slices: bool = True
-    ) -> Union[Tuple[np.ndarray, np.ndarray], List[slice]]:
+    def transform_bounds(self, bounds: Tuple[np.ndarray, np.ndarray]) -> List[slice]:
         """
         Takes bounds in tuple format ((a,b,c), (A,B,C)) and converts them into slices
         [a:A, b:B, c:C] in voxel space
@@ -304,19 +302,13 @@ class SegmentationSource:
         assert all(
             (bounds[1] - bounds[0]) % self.voxel_resolution == 0
         ), "Queried shape must be a multiple of the voxel shape"
-        if slices:
-            return list(
-                map(
-                    slice,
-                    bounds[0] // self.voxel_resolution,
-                    bounds[1] // self.voxel_resolution,
-                )
-            )
-        else:
-            return (
+        return list(
+            map(
+                slice,
                 bounds[0] // self.voxel_resolution,
                 bounds[1] // self.voxel_resolution,
             )
+        )
 
     def get_roi(self, center: np.ndarray) -> Tuple[Iterable[int], Iterable[int]]:
         voxel_shape = self.voxel_resolution
@@ -341,7 +333,7 @@ class SegmentationSource:
             raise ValueError("boolean_mask contains NAN!")
         return mask
 
-    def _boolean_mask(self, bounds: Tuple[np.ndarray, np.ndarray]) -> np.ndarray:
+    def _boolean_mask(self, bounds: List[slice]) -> np.ndarray:
         return self.segmentation_counts[bounds] > 0
 
     def dist_weighted_boolean_mask(
@@ -355,7 +347,7 @@ class SegmentationSource:
             raise ValueError("dist_weighted_boolean_mask contains NAN!")
         return mask
 
-    def _dist_weighted_boolean_mask(self, bounds: Tuple[np.ndarray, np.ndarray]):
+    def _dist_weighted_boolean_mask(self, bounds: List[slice]):
         return self._boolean_mask(bounds) * self.distances[bounds]
 
     def view_weighted_mask(
@@ -370,7 +362,7 @@ class SegmentationSource:
         return mask
 
     def _view_weighted_mask(
-        self, bounds: Tuple[np.ndarray, np.ndarray], incr_denom: int = 1
+        self, bounds: List[slice], incr_denom: int = 1
     ) -> np.ndarray:
         return self.segmentation_counts[bounds] / (
             self.segmentation_views[bounds] + incr_denom
@@ -381,12 +373,11 @@ class SegmentationSource:
         mask = self._dist_view_weighted_mask(bounds)
         if sphere:
             mask[np.logical_not(sphere)] = 0
+        print(np.isnan(mask))
         if any(np.isnan(mask)):
             raise ValueError("dist_view_weighted_mask contains NAN!")
         return mask
 
-    def _dist_view_weighted_mask(
-        self, bounds: Tuple[np.ndarray, np.ndarray]
-    ) -> np.ndarray:
+    def _dist_view_weighted_mask(self, bounds: List[slice]) -> np.ndarray:
         return self._view_weighted_mask(bounds, 1) * self.distances[bounds]
 
