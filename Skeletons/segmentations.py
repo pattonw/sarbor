@@ -297,7 +297,7 @@ class SegmentationSource:
         block_offset = (fov_shape // voxel_shape) // 2
         start = center_block - block_offset * voxel_shape
         end = center_block + (block_offset + 1) * voxel_shape
-        assert (
+        assert all(
             start - end == fov_shape
         ), "ROI does not cover the expected area: {} vs {}".format(
             start - end, fov_shape
