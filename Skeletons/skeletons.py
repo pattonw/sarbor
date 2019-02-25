@@ -27,8 +27,6 @@ class Skeleton:
     def clone(self):
         # TODO: this function is outdated
         new_skeleton = Skeleton()
-        new_skeleton._fov_shape = self._fov_shape
-        new_skeleton._res = self._res
         new_skeleton._sphere = self._sphere
         return new_skeleton
 
