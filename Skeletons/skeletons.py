@@ -501,7 +501,7 @@ class Skeleton:
         return sub_nid_branch_score_map
 
     def get_nid_branch_score_map(
-        self, nodes=None, sphere=True, mass=False, incrDenom=True, consenus=True, key=""
+        self, nodes=None, sphere=True, incrDenom=True, consenus=True, key=""
     ):
         """
         Create a map from node ids to branch scores. Nodes can then be sorted
@@ -517,35 +517,16 @@ class Skeleton:
             mask = self.get_dist_weighted_mask(
                 node.value.center, increment_denominator=incrDenom, sphere=sphere
             )
+            direction, mag = self._get_max_vec(mask)
 
-            if mass:
-                direction, mag = self._get_center_of_mass(mask)
-            else:
-                direction, mag = self._get_max_vec(mask)
-
-            """ # Add a "fullness" scaling term to lower rank of areas that have been excessively filled
-            mag = mag * (
-                1
-                - np.sum(
-                    self.get_count_weighted_mask(
-                        list(
-                            map(
-                                slice,
-                                node.value.center - self.fov_shape // 2,
-                                node.value.center + self.fov_shape // 2 + 1,
-                            )
-                        )
-                    )
-                    > 0
-                )
-                / np.prod(self.fov_shape)
-            )
-            """
             if key == "location":
                 nid_score_map[tuple(node.value.center)] = (direction, mag)
             else:
                 nid_score_map[node.key] = (direction, mag)
             if any(np.isnan(x) for x in direction):
+                print(mask)
+                print(direction)
+                print(mag)
                 raise ValueError("Direction is NAN!")
 
         if consenus and not key == "location":
