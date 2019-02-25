@@ -28,6 +28,11 @@ class SegmentationSource:
         self._constants = constants
         self._sphere = None
 
+        # Octrees
+        self._segmentation_views = None
+        self._segmentation_counts = None
+        self._distances = None
+
     @property
     def start_phys(self) -> np.ndarray:
         """
