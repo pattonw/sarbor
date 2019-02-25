@@ -287,7 +287,7 @@ class SegmentationSource:
         return self.segmentation_counts[voxel_bounds] > 0
 
     @staticmethod
-    def _slices(bounds: Tuple(Iterable, Iterable)):
+    def _slices(bounds: Tuple(Iterable[int], Iterable[int])):
         return list(map(slice, bounds[0], bounds[1]))
 
     def get_roi(self, center: np.ndarray) -> Tuple:
