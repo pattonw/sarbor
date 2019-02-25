@@ -766,15 +766,15 @@ class Skeleton:
         return costs[-1, -1, -1]
 
     def get_dist_weighted_mask(
-        self, bounds, min_overlap_count=1, increment_denominator=False
+        self, center: np.ndarray, min_overlap_count=1, increment_denominator=False
     ):
-        return self.seg.dist_view_weighted_mask(bounds)
+        return self.seg.dist_view_weighted_mask(center)
 
     def get_count_weighted_mask(
-        self, bounds, min_overlap_count=1, increment_denominator=False
+        self, center: np.ndarray, min_overlap_count=1, increment_denominator=False
     ):
         return self.seg.view_weighted_mask(
-            bounds, incr_denom=int(increment_denominator)
+            center, incr_denom=int(increment_denominator)
         )
 
     def calculate_center_of_mass_vects(self):
