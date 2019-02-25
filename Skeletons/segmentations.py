@@ -34,16 +34,20 @@ class SegmentationSource:
         self._distances = None
 
     @property
+    def resolution_phys(self) -> np.ndarray:
+        """
+        nanometers per voxel in X,Y,Z order in original image space
+        default: 4, 4, 40
+        """
+        return self._constants.get("original_resolution", np.array([4, 4, 40]))
+
+    @property
     def start_phys(self) -> np.ndarray:
         """
         Coordinates in X,Y,Z order with units in nano-meters
         default: 403560, 121800, 158000
         """
-        return self.constants.get("start_phys", np.array([403560, 121800, 158000]))
-
-    @property
-    def start_voxel(self) -> np.ndarray:
-        self.start // self.voxel_resolution
+        return self._constants.get("start_phys", np.array([403560, 121800, 158000]))
 
     @property
     def shape_phys(self) -> np.ndarray:
@@ -51,11 +55,7 @@ class SegmentationSource:
         Shape in X,Y,Z order with units in nano-meters
         default: 64000, 52000, 76000
         """
-        return self.constants.get("shape_phys", np.array([64000, 52000, 76000]))
-
-    @property
-    def shape_voxel(self) -> np.ndarray:
-        return (self.phys_shape + self.voxel_resolution - 1) // self.voxel_resolution
+        return self._constants.get("shape_phys", np.array([64000, 52000, 76000]))
 
     @property
     def end_phys(self) -> np.ndarray:
@@ -66,16 +66,23 @@ class SegmentationSource:
         return self.start_phys + self.shape_phys
 
     @property
-    def end_voxel(self) -> np.ndarray:
-        return self.start_voxel + self.shape_voxel
+    def voxel_resolution(self) -> np.ndarray:
+        """
+        Resolution for each voxel in the segmentation in X,Y,Z order
+        """
+        return self.resolution_phys * self.downsample_factor
 
     @property
-    def resolution_phys(self) -> np.ndarray:
-        """
-        nanometers per voxel in X,Y,Z order in original image space
-        default: 4, 4, 40
-        """
-        return self._constants.get("original_resolution", np.array([4, 4, 40]))
+    def start_voxel(self) -> np.ndarray:
+        self.start_phys // self.voxel_resolution
+
+    @property
+    def shape_voxel(self) -> np.ndarray:
+        return (self.shape_phys + self.voxel_resolution - 1) // self.voxel_resolution
+
+    @property
+    def end_voxel(self) -> np.ndarray:
+        return self.start_voxel + self.shape_voxel
 
     @property
     def seg_phys_bounds(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -91,13 +98,6 @@ class SegmentationSource:
         Downsample for each axis in X,Y,Z order
         """
         return self._constants.get("downsample_scale", np.array([10, 10, 1]))
-
-    @property
-    def voxel_resolution(self) -> np.ndarray:
-        """
-        Resolution for each voxel in the segmentation in X,Y,Z order
-        """
-        return self.resolution_phys * self.downsample_factor
 
     @property
     def fov_shape_voxels(self) -> np.ndarray:
