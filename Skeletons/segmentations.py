@@ -74,7 +74,7 @@ class SegmentationSource:
 
     @property
     def start_voxel(self) -> np.ndarray:
-        self.start_phys // self.voxel_resolution
+        return self.start_phys // self.voxel_resolution
 
     @property
     def shape_voxel(self) -> np.ndarray:
