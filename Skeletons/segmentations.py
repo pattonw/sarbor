@@ -148,8 +148,8 @@ class SegmentationSource:
         """
         if self._segmentation_views is None:
             self._segmentation_views = OctreeVolume(
-                self.fov_shape,
-                self.bounds,
+                self.fov_shape_voxels,
+                self.seg_voxel_bounds,
                 np.uint8,
                 self._data_populator_factory(0, np.uint8),
             )
@@ -164,8 +164,8 @@ class SegmentationSource:
         """
         if self._segmentation_counts is None:
             self.segmentation_counts = OctreeVolume(
-                self.fov_shape,
-                self.bounds,
+                self.fov_shape_voxels,
+                self.seg_voxel_bounds,
                 np.uint8,
                 self._data_populator_factory(0, np.uint8),
             )
@@ -180,8 +180,8 @@ class SegmentationSource:
         """
         if self._distances is None:
             self.distances = OctreeVolume(
-                self.fov_shape,
-                self.bounds,
+                self.fov_shape_voxels,
+                self.seg_voxel_bounds,
                 float,
                 self._data_populator_factory(float("inf"), float),
             )
