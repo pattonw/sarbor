@@ -126,7 +126,9 @@ class SegmentationSource:
         This does take into account voxel resolution.
         """
         if self._sphere is None:
-            self._sphere = self._create_sphere()
+            self._sphere = self._create_sphere(
+                self.fov_shape_voxels, self.voxel_resolution
+            )
         return self._sphere
 
     @staticmethod
