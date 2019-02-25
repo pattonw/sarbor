@@ -316,7 +316,5 @@ class SegmentationSource:
 
     def dist_view_weighted_mask(self, center: np.ndarray) -> np.ndarray:
         voxel_bounds = self._slices(self.get_roi(center))
-        return (
-            self.get_view_weighted_mask(voxel_bounds, 1) * self.distances[voxel_bounds]
-        )
+        return self.view_weighted_mask(voxel_bounds, 1) * self.distances[voxel_bounds]
 
