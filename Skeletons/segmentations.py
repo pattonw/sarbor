@@ -242,8 +242,8 @@ class SegmentationSource:
         for node in nodes:
             node_bounds = self.transform_bounds(self.get_roi(node.value.center))
             if node.value.mask is not None:
-                self.segmentation_views[node_bounds] += node.value.mask
-            self.segmentation_counts[node_bounds] += 1
+                self.segmentation_counts[node_bounds] += node.value.mask
+            self.segmentation_views[node_bounds] += 1
             self.distances[node_bounds] = np.minimum(
                 self.distances[node_bounds], dist_block
             )
