@@ -222,30 +222,17 @@ class SegmentationSource:
 
     @staticmethod
     def _dist_block(dimensions, resolution):
+        half_dim = dimensions // 2
         x = (
-            (
-                np.linspace(-dimensions[0] // 2, dimensions[0] // 2, dimensions[0])
-                * resolution[0]
-            )
-            ** 2
+            (np.linspace(-half_dim[0], half_dim[0], dimensions[0]) * resolution[0]) ** 2
         ).reshape(dimensions[0], 1, 1)
         y = (
-            (
-                np.linspace(-dimensions[1] // 2, dimensions[1] // 2, dimensions[1])
-                * resolution[1]
-            )
-            ** 2
+            (np.linspace(-half_dim[1], half_dim[1], dimensions[1]) * resolution[1]) ** 2
         ).reshape(1, dimensions[1], 1)
         z = (
-            (
-                np.linspace(-dimensions[2] // 2, dimensions[2] // 2, dimensions[2])
-                * resolution[2]
-            )
-            ** 2
+            (np.linspace(-half_dim[2], half_dim[2], dimensions[2]) * resolution[2]) ** 2
         ).reshape(1, 1, dimensions[2])
-        return (x + y + z) ** (0.5) / np.sum((dimensions // 2 * resolution) ** 2) ** (
-            0.5
-        )
+        return (x + y + z) ** (0.5) / np.sum((half_dim * resolution) ** 2) ** (0.5)
 
     def create_octrees_from_nodes(self, nodes: Iterable[Node], sphere: bool = False):
         dist_block = self._dist_block(self.fov_shape_voxels, self.voxel_resolution)
@@ -372,6 +359,7 @@ class SegmentationSource:
         mask = self.segmentation_counts[bounds] / (
             self.segmentation_views[bounds] + incr_denom
         )
+        assert mask.max() <= 1, "Cannot have confidence above 100%"
         if np.isnan(mask).any():
             raise ValueError("view_weighted_mask contains NAN!")
         if np.isinf(mask).any():
