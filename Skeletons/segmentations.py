@@ -2,6 +2,7 @@ import numpy as np
 from typing import Dict, Any, Union, List, Tuple, Iterable
 from pathlib import Path
 import pickle
+import logging
 
 from .octrees import OctreeVolume
 
@@ -394,7 +395,11 @@ class SegmentationSource:
 
     def _distance_mask(self, bounds: List[slice]) -> np.ndarray:
         distances = self.distances[bounds]
-        print(np.isinf(distances).sum() / np.prod(distances.shape))
+        logging.debug(
+            "Percent of distances seen that are infinite is: {}".format(
+                np.isinf(distances).sum() / np.prod(distances.shape)
+            )
+        )
         distances[np.isinf(distances)] = 0
         return distances
 
