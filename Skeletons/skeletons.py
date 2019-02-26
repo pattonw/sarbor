@@ -856,36 +856,16 @@ class Skeleton:
 
     def delete_branch(self, branch_chop: Tuple[int, int]):
         self.calculate_strahlers()
-        keep_node = self.arbor.nodes[branch_chop[0]]
-        new_root = keep_node
-        while new_root.parent is not None:
-            if new_root.parent_key is not branch_chop[1]:
-                new_root = new_root.parent
+        keep_root = self.arbor.nodes[branch_chop[0]]
+        while keep_root.parent_key not in (None, branch_chop[1]):
+            keep_root = keep_root.parent
 
-        keep_nodes = new_root.traverse(ignore=[branch_chop[1]])
+        keep_nodes = keep_root.traverse(ignore=[branch_chop[1]])
         new_skeleton = Skeleton()
         new_skeleton.input_nodes(keep_nodes)
         print(
-            "Original skeleton size {} vs new skeleton size {}".format(
-                len(new_skeleton.get_nodes()), len(self.get_nodes())
-            )
-        )
-        return new_skeleton
-
-    def delete_segment(self, segment_chop: Tuple[int, int]):
-        self.calculate_strahlers()
-        keep_node = self.arbor.nodes[segment_chop[0]]
-        new_root = keep_node
-        while new_root.parent is not None:
-            if new_root.parent_key is not segment_chop[1]:
-                new_root = new_root.parent
-
-        keep_nodes = new_root.traverse(ignore=[segment_chop[1]])
-        new_skeleton = Skeleton()
-        new_skeleton.input_nodes(keep_nodes)
-        print(
-            "Original skeleton size {} vs new skeleton size {}".format(
-                len(new_skeleton.get_nodes()), len(self.get_nodes())
+            "Original skeleton size {} vs chopped skeleton size {}".format(
+                len(self.get_nodes()), len(new_skeleton.get_nodes())
             )
         )
         return new_skeleton

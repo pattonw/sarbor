@@ -169,13 +169,15 @@ class Node:
         else:
             raise Exception("This node has {} neighbors".format(len(neighbors)))
 
-    def traverse(self, ignore: Optional[List[int]] = None):
+    def traverse(self, ignore: List[int] = None):
+        if ignore is None:
+            ignore = []
         queue = deque([self])
         while len(queue) > 0:
             current = queue.pop()
             yield current
             for child in current.children:
-                if ignore is None or child.key not in ignore:
+                if child.key not in ignore:
                     queue.append(child)
 
 
