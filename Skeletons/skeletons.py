@@ -519,6 +519,10 @@ class Skeleton:
             mask = self.get_dist_weighted_mask(
                 node.value.center, increment_denominator=incrDenom, sphere=sphere
             )
+            assert mask.max() <= 1, (
+                "max mask value is {} which is greater than 1."
+                + " confidence score above 1 should not be possible"
+            ).format(mask.max())
             direction, mag = self._get_max_vec(mask)
 
             if key == "location":
@@ -656,9 +660,17 @@ class Skeleton:
             return np.array([0, 0, 0]), 0
         else:
             v = v - np.array(data.shape) // 2
+            dist_component = np.linalg.norm(v) / (
+                np.linalg.norm(np.array(data.shape) // 2)
+            )
+            assert (
+                dist_component <= 1
+            ), "max distance should be 1 at the corners. It is {}".format(
+                dist_component
+            )
             score = (
                 np.linalg.norm(v)
-                / (np.linalg.norm(np.array(data.shape)) // 2)
+                / (np.linalg.norm(np.array(data.shape) // 2))
                 * np.max(data)
             )
             return (v, score)
