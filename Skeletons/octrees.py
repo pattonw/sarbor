@@ -15,6 +15,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 """Simple octree data structures for block sparse 3D arrays."""
 import numpy as np
 from .libpyn5 import read_n5, write_n5
+import logging
 
 
 class OctreeVolume(object):
@@ -104,7 +105,7 @@ class OctreeVolume(object):
                             data,
                         )
             leaf_count += 1
-            print("leaf {} done".format(leaf_count))
+            logging.debug("leaf {} done".format(leaf_count))
 
     def read_from_n5(self, folder, dataset, bounds):
         img = (

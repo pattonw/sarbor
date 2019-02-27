@@ -2,6 +2,7 @@ import numpy as np
 import math
 from scipy.ndimage import gaussian_filter1d
 import time
+import logging
 
 from .arbors import SpatialArbor, Node
 from .segmentations import SegmentationSource
@@ -141,8 +142,8 @@ class Skeleton:
             self.arbor.build_from_root(roots[0])
         else:
             sizes = [len(list(node.traverse())) for node in roots]
-            print(
-                "Warning: {} nodes not included in tree!".format(
+            logging.warn(
+                "{} nodes excluded from tree!".format(
                     sum(sizes) - max(sizes)
                 )
             )
@@ -201,7 +202,7 @@ class Skeleton:
     #                    )
     #                section_bounds = node_bounds
     #                done_nodes += 1
-    #                print(
+    #                logging.debug(
     #                    "{}/{} ({:.2f}%) done".format(
     #                        done_nodes, num_nodes, done_nodes / num_nodes * 100
     #                    )
@@ -215,6 +216,13 @@ class Skeleton:
     #            self.segmentation_counts.read_from_n5(
     #                folder_path, skeleton_dir + "/counts", section_bounds
     #            )
+
+    # ----Extracting Skeleton Data-----
+
+    def extract_data(self):
+        nodes, masks = self.arbor.extract_data()
+        segmentation_data = self.seg.extract_data()
+        return nodes, masks, segmentation_data
 
     # ----Editing Skeleton Data-----
 
@@ -419,7 +427,7 @@ class Skeleton:
                 nodes.append(node)
             else:
                 skipped += 1
-        print("{}/{} nodes recalculated".format(len(nodes), skipped + len(nodes)))
+        logging.debug("{}/{} nodes recalculated".format(len(nodes), skipped + len(nodes)))
         small_radius_scores = self.get_nid_branch_score_map(
             nodes=nodes, sphere=sphere, mass=mass, incrDenom=incrDenom
         )
@@ -465,7 +473,7 @@ class Skeleton:
         self.seg.create_octrees_from_nodes(nodes=large_radius)
         t2 = time.time()
         if DEBUG == "TIME":
-            print(
+            logging.debug(
                 "\tCreating Octrees took {} seconds, {} per node with {} nodes".format(
                     round(t2 - t1),
                     round((t2 - t1) / len(large_radius), 1),
@@ -482,7 +490,7 @@ class Skeleton:
         )
         t2 = time.time()
         if DEBUG == "TIME":
-            print(
+            logging.debug(
                 "\tCalculating scores took {} seconds, {} per node with {} nodes".format(
                     round(t2 - t1),
                     round((t2 - t1) / len(close_nodes), 1),
@@ -530,9 +538,9 @@ class Skeleton:
             else:
                 nid_score_map[node.key] = (direction, mag)
             if any(np.isnan(x) for x in direction):
-                print(mask)
-                print(direction)
-                print(mag)
+                logging.debug(mask)
+                logging.debug(direction)
+                logging.debug(mag)
                 raise ValueError("Direction is NAN!")
 
         if consenus and not key == "location":
@@ -551,7 +559,7 @@ class Skeleton:
 
         TODO: make this more general
         """
-        print("starting node connectivity")
+        logging.debug("starting node connectivity")
         nid_score_map = {}
         for node in self.get_nodes():
             if node.parent is None:
@@ -642,7 +650,7 @@ class Skeleton:
         change_mag = change_mag / (len(x) * len(y) * len(z) / 4)
 
         if any(np.isnan(x) for x in change_direction):
-            print("nan")
+            logging.debug("nan")
 
         return (change_direction, change_mag)
 
@@ -846,8 +854,6 @@ class Skeleton:
         downsampled_coords = list(
             downsample(smoothed_coords, delta, root[2:], nodes[-1].value.center)
         )
-        if len(downsampled_coords) == 0:
-            print("No downsampling?")
         previous_id = root[0]
         current_id = new_node_id
         downsampled_nodes = []
@@ -875,7 +881,7 @@ class Skeleton:
         keep_nodes = keep_root.traverse(ignore=[branch_chop[1]])
         new_skeleton = Skeleton()
         new_skeleton.input_nodes(keep_nodes)
-        print(
+        logging.debug(
             "Original skeleton size {} vs chopped skeleton size {}".format(
                 len(self.get_nodes()), len(new_skeleton.get_nodes())
             )

@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Any, Union, List, Tuple, Iterable
+from typing import Dict, Any, List, Tuple, Iterable
 from pathlib import Path
 import pickle
 import logging
@@ -259,8 +259,8 @@ class SegmentationSource:
             "distances": self.distances,
         }
         for name, data in datasets.items():
-            print("Saving {} to n5!".format(name))
-            print("Num leaves = {}".format(len(list(data.iter_leaves()))))
+            logging.debug("Saving {} to n5!".format(name))
+            logging.debug("Num leaves = {}".format(len(list(data.iter_leaves()))))
             data.write_to_n5(folder_path, name)
         pickle.dump(self._constants, open(Path(folder_path, "constants.obj"), "wb"))
 
@@ -269,12 +269,15 @@ class SegmentationSource:
         self._segmentation_views = OctreeVolume.read_from_n5(
             folder_path, "segmentation_views", self.shape_voxel
         )
-        self._segmentation_views = OctreeVolume.read_from_n5(
+        self._segmentation_counts = OctreeVolume.read_from_n5(
             folder_path, "segmentation_counts", self.shape_voxel
         )
-        self._segmentation_views = OctreeVolume.read_from_n5(
+        self._distances = OctreeVolume.read_from_n5(
             folder_path, "distances", self.shape_voxel
         )
+
+    def extract_data(self):
+        return self._constants
 
     def transform_bounds(self, bounds: Tuple[np.ndarray, np.ndarray]) -> List[slice]:
         """

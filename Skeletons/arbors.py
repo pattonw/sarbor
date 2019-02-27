@@ -1,6 +1,7 @@
 from collections import deque
 import numpy as np
 from typing import Tuple, Dict, Optional, Any, List
+import logging
 
 Bounds = Tuple[np.ndarray, np.ndarray]
 
@@ -363,7 +364,9 @@ class NodeData:
         if self.center is None:
             self.data["center"] = center
         else:
-            print("Overriding the center {} with {}".format(self.center, center))
+            logging.debug(
+                "Overriding the center {} with {}".format(self.center, center)
+            )
 
     @property
     def mask(self) -> Optional[np.ndarray]:
@@ -510,3 +513,23 @@ class SpatialArbor(Arbor):
             current.strahler = current._calculate_strahler()
             strahler_indicies[current] = current.strahler
         return strahler_indicies
+
+    def extract_data(self):
+        nodes = [
+            (
+                node.key,
+                node.parent_key,
+                node.value.center[0],
+                node.value.center[1],
+                node.value.center[2],
+                node.strahler,
+            )
+            for node in self.nodes
+        ]
+        masks = {
+            node.key: node.value.mask
+            for node in self.nodes
+            if node.value.mask is not None
+        }
+        return nodes, masks
+
