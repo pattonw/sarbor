@@ -524,11 +524,11 @@ class SpatialArbor(Arbor):
                 node.value.center[2],
                 node.strahler,
             )
-            for node in self.nodes
+            for node in self.nodes.values()
         ]
         masks = {
             node.key: node.value.mask
-            for node in self.nodes
+            for node in self.nodes.values()
             if node.value.mask is not None
         }
         return nodes, masks
