@@ -140,13 +140,10 @@ class Skeleton:
                 parent.add_child(nodes[nid])
         if len(roots) == 1:
             self.arbor.build_from_root(roots[0])
+            logging.info("No nodes lost!")
         else:
             sizes = [len(list(node.traverse())) for node in roots]
-            logging.warn(
-                "{} nodes excluded from tree!".format(
-                    sum(sizes) - max(sizes)
-                )
-            )
+            logging.warn("{} nodes excluded from tree!".format(sum(sizes) - max(sizes)))
             self.arbor.build_from_root(roots[sizes.index(max(sizes))])
 
     def is_filled(self, nid: int) -> bool:
@@ -397,6 +394,7 @@ class Skeleton:
                     * nid_score_map[n.key][1]
                     / np.linalg.norm(nid_score_map[n.key][0])
                     for n in neighbors + [node]
+                    if not math.isclose(np.linalg.norm(nid_score_map[n.key][0]), 0)
                 ],
                 axis=0,
             ) / (len(neighbors) + 1)
@@ -427,7 +425,9 @@ class Skeleton:
                 nodes.append(node)
             else:
                 skipped += 1
-        logging.debug("{}/{} nodes recalculated".format(len(nodes), skipped + len(nodes)))
+        logging.debug(
+            "{}/{} nodes recalculated".format(len(nodes), skipped + len(nodes))
+        )
         small_radius_scores = self.get_nid_branch_score_map(
             nodes=nodes, sphere=sphere, mass=mass, incrDenom=incrDenom
         )
@@ -562,14 +562,71 @@ class Skeleton:
         logging.debug("starting node connectivity")
         nid_score_map = {}
         for node in self.get_nodes():
-            if node.parent is None:
-                nid_score_map[node.key] = (node.key, -1)
-            else:
-                nid_score_map[node.key] = (
-                    node.parent.key,
-                    self.get_connection(node.value.center, node.parent.value.center),
-                )
+            nid_score_map[(node.key, node.parent_key)] = (
+                tuple((node.value.center + node.parent.value.center) // 2),
+                self.get_connection(node, node.parent),
+            )
         return nid_score_map
+
+    def get_connection(self, node_a, node_b):
+        """
+        simply look at the overlap of two neighboring masks
+        """
+        roi_a = self.seg.get_roi(node_a.value.center)
+        roi_b = self.seg.get_roi(node_b.value.center)
+        roi_ab = (np.maximum(roi_a[0], roi_b[0]), np.minimum(roi_a[1], roi_b[1]))
+        if any(roi_ab[0] < roi_ab[1]):
+            logging.warn(
+                "Nodes {} and {} do not have overlapping masks!".format(
+                    node_a.key, node_b.key
+                )
+            )
+            return 0
+        a_slices = self.seg.transform_bounds(
+            (roi_ab[0] - roi_a[0], roi_ab[1] - roi_a[0])
+        )
+        b_slices = self.seg.transform_bounds(
+            (roi_ab[0] - roi_b[0], roi_ab[1] - roi_b[0])
+        )
+        return sum(
+            (node_a.value.mask[a_slices] + node_b.value.mask[b_slices] == 2)
+            / np.prod((roi_ab[1] - roi_ab[0]) / self.seg.voxel_resolution)
+        )
+
+    def get_connectivity_path(self, index_a, index_b):
+        a2b_matrix = self.get_count_weighted_mask(
+            list(
+                map(
+                    slice,
+                    np.minimum(index_a, index_b),
+                    np.maximum(index_a, index_b) + 1,
+                )
+            ),
+            increment_denominator=True,
+        )
+        reversers = index_a < index_b
+        a2b_matrix = a2b_matrix[
+            slice(None, None, -1) if reversers[0] else slice(None, None),
+            slice(None, None, -1) if reversers[1] else slice(None, None),
+            slice(None, None, -1) if reversers[2] else slice(None, None),
+        ]
+        costs = np.ones(a2b_matrix.shape)
+        for i in range(a2b_matrix.shape[0]):
+            for j in range(a2b_matrix.shape[1]):
+                for k in range(a2b_matrix.shape[2]):
+                    current_score = np.min(a2b_matrix[i, j, k])
+                    region = list(
+                        map(
+                            slice,
+                            [x - 1 if x > 0 else x for x in [i, j, k]],
+                            [i + 1, j + 1, k + 1],
+                        )
+                    )
+                    if i == j == k == 0:
+                        costs[i, j, k] = current_score
+                    else:
+                        costs[i, j, k] = min(current_score, np.max(costs[region]))
+        return costs[-1, -1, -1]
 
     def save_rankings(self, output_file="ranking_data"):
         connectivity_rankings = self.get_node_connectivity()
@@ -682,41 +739,6 @@ class Skeleton:
                 * np.max(data)
             )
             return (v, score)
-
-    def get_connection(self, index_a, index_b):
-        a2b_matrix = self.get_count_weighted_mask(
-            list(
-                map(
-                    slice,
-                    np.minimum(index_a, index_b),
-                    np.maximum(index_a, index_b) + 1,
-                )
-            ),
-            increment_denominator=True,
-        )
-        reversers = index_a < index_b
-        a2b_matrix = a2b_matrix[
-            slice(None, None, -1) if reversers[0] else slice(None, None),
-            slice(None, None, -1) if reversers[1] else slice(None, None),
-            slice(None, None, -1) if reversers[2] else slice(None, None),
-        ]
-        costs = np.ones(a2b_matrix.shape)
-        for i in range(a2b_matrix.shape[0]):
-            for j in range(a2b_matrix.shape[1]):
-                for k in range(a2b_matrix.shape[2]):
-                    current_score = np.min(a2b_matrix[i, j, k])
-                    region = list(
-                        map(
-                            slice,
-                            [x - 1 if x > 0 else x for x in [i, j, k]],
-                            [i + 1, j + 1, k + 1],
-                        )
-                    )
-                    if i == j == k == 0:
-                        costs[i, j, k] = current_score
-                    else:
-                        costs[i, j, k] = min(current_score, np.max(costs[region]))
-        return costs[-1, -1, -1]
 
     def get_dist_weighted_mask(
         self,

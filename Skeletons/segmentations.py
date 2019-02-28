@@ -301,7 +301,7 @@ class SegmentationSource:
             )
         )
 
-    def get_roi(self, center: np.ndarray) -> Tuple[Iterable[int], Iterable[int]]:
+    def get_roi(self, center: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         voxel_shape = self.voxel_resolution
         fov_shape = self.fov_shape_phys
         center_block = center - center % voxel_shape
