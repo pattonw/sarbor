@@ -548,34 +548,30 @@ class Skeleton:
 
         return nid_score_map
 
-    def get_node_connectivity(self, ascending=True):
+    def get_node_connectivity(self, ascending: bool = True):
         """
-        Return a list of nodes and their "connectivity score".
+        Return a list of parent/child node pairs and their "connectivity score".
         Connectivity score is relatively arbitrary with the property
         that 1 means well connected, 0 means not connected.
-
-        Instead of returning every node and its connectivity to its neighbor,
-        return nodes representing regions of low connectivity and rank them.
-
-        TODO: make this more general
         """
         logging.debug("starting node connectivity")
         nid_score_map = {}
         for node in self.get_nodes():
-            nid_score_map[(node.key, node.parent_key)] = (
-                tuple((node.value.center + node.parent.value.center) // 2),
-                self.get_connection(node, node.parent),
-            )
+            if node.parent is not None:
+                nid_score_map[(node.key, node.parent_key)] = (
+                    tuple((node.value.center + node.parent.value.center) // 2),
+                    self.get_connection(node, node.parent),
+                )
         return nid_score_map
 
-    def get_connection(self, node_a, node_b):
+    def get_connection(self, node_a: Node, node_b: Node):
         """
         simply look at the overlap of two neighboring masks
         """
         roi_a = self.seg.get_roi(node_a.value.center)
         roi_b = self.seg.get_roi(node_b.value.center)
         roi_ab = (np.maximum(roi_a[0], roi_b[0]), np.minimum(roi_a[1], roi_b[1]))
-        if any(roi_ab[0] < roi_ab[1]):
+        if any(roi_ab[0] > roi_ab[1]):
             logging.warn(
                 "Nodes {} and {} do not have overlapping masks!".format(
                     node_a.key, node_b.key
@@ -593,7 +589,11 @@ class Skeleton:
             / np.prod((roi_ab[1] - roi_ab[0]) / self.seg.voxel_resolution)
         )
 
-    def get_connectivity_path(self, index_a, index_b):
+    def get_connectivity_path(self, index_a: np.ndarray, index_b: np.ndarray):
+        """
+        Connectivity score is calculated by finding the maximum edge weight along
+        the minimum cost path between two indicies through the segmentation data.
+        """
         a2b_matrix = self.get_count_weighted_mask(
             list(
                 map(
