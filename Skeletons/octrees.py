@@ -14,7 +14,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 """Simple octree data structures for block sparse 3D arrays."""
 import numpy as np
-from .libpyn5 import read_n5, write_n5
+import pyn5
 import logging
 
 
@@ -73,48 +73,12 @@ class OctreeVolume(object):
         when writing coordinates must be flipped
         """
 
-        # z,y,x format
-        dataset_attrs = {
-            "block_shape": self.leaf_shape,
-            "dimensions": self.bounds[1] - self.bounds[0],
-        }
-        leaf_count = 0
+        dataset = pyn5.open(folder, dataset)
         for leaf in self.iter_leaves():
-            start = leaf.bounds[0] - leaf.bounds[0] % dataset_attrs["block_shape"]
-            rounded_up = leaf.bounds[1] + dataset_attrs["block_shape"] - 1
-            end = rounded_up - rounded_up % dataset_attrs["block_shape"]
-            num_blocks = (end - start) // dataset_attrs["block_shape"]
-            for i in range(num_blocks[0]):
-                for j in range(num_blocks[1]):
-                    for k in range(num_blocks[2]):
-                        offset = (
-                            np.array([i, j, k]) * dataset_attrs["block_shape"]
-                        ).astype("int")
-                        block_start = (start + offset).astype("int")
-                        block_end = (
-                            start + offset + dataset_attrs["block_shape"]
-                        ).astype("int")
-                        block_range = list(map(slice, block_start, block_end))
-                        data = self[block_range]
-                        data = data.flatten().astype("int")
-                        write_n5(
-                            folder,
-                            dataset,
-                            ((start + offset) // dataset_attrs["block_shape"])[::-1],
-                            (dataset_attrs["block_shape"])[::-1],
-                            data,
-                        )
-            leaf_count += 1
-            logging.debug("leaf {} done".format(leaf_count))
+            pyn5.write(dataset, leaf.bounds, leaf.data)
 
     def read_from_n5(self, folder, dataset, bounds):
-        img = (
-            np.array(
-                read_n5(folder, dataset, list(bounds[0]), list(bounds[1] - bounds[0]))
-            )
-            .reshape(list(bounds[1] - bounds[0])[::-1])
-            .transpose([2, 1, 0])
-        )
+        img = pyn5.read(pyn5.open(folder, dataset), bounds)
         self[list(map(slice, bounds[0], bounds[1]))] = img
 
     @property
