@@ -72,7 +72,9 @@ class OctreeVolume(object):
         Note: because diluvian works with z,y,x and pyn5 assumes x,y,z: 
         when writing coordinates must be flipped
         """
-
+        pyn5.create_dataset(
+            folder, dataset, self.bounds[1], self.leaf_shape, str(self.dtype).upper()
+        )
         dataset = pyn5.open(folder, dataset)
         for leaf in self.iter_leaves():
             pyn5.write(dataset, leaf.bounds, leaf.data)
