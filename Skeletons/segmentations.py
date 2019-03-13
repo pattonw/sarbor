@@ -114,6 +114,13 @@ class SegmentationSource:
         return shape
 
     @property
+    def leaf_shape_voxels(self) -> np.ndarray:
+        """
+        leaf shape for the octrees in voxels
+        """
+        return self._constants.get("leaf_voxel_shape", np.array([128, 128, 128]))
+
+    @property
     def fov_shape_phys(self) -> np.ndarray:
         return self.fov_shape_voxels * self.voxel_resolution
 
@@ -151,7 +158,7 @@ class SegmentationSource:
         """
         if self._segmentation_views is None:
             self._segmentation_views = OctreeVolume(
-                self.fov_shape_voxels,
+                self.leaf_shape_voxels,
                 self.seg_voxel_bounds,
                 np.uint8,
                 self._data_populator_factory(0, np.uint8),
@@ -166,7 +173,7 @@ class SegmentationSource:
         """
         if self._segmentation_counts is None:
             self._segmentation_counts = OctreeVolume(
-                self.fov_shape_voxels,
+                self.leaf_shape_voxels,
                 self.seg_voxel_bounds,
                 np.uint8,
                 self._data_populator_factory(0, np.uint8),
@@ -181,7 +188,7 @@ class SegmentationSource:
         """
         if self._distances is None:
             self._distances = OctreeVolume(
-                self.fov_shape_voxels,
+                self.leaf_shape_voxels,
                 self.seg_voxel_bounds,
                 float,
                 self._data_populator_factory(float("inf"), float),
@@ -262,10 +269,10 @@ class SegmentationSource:
             logging.debug("Saving {} to n5!".format(name))
             logging.debug("Num leaves = {}".format(len(list(data.iter_leaves()))))
             data.write_to_n5(folder_path, name)
-        pickle.dump(self._constants, open(Path(folder_path, "constants.obj"), "wb"))
+        pickle.dump(self._constants, Path(folder_path, "constants.obj").open("wb"))
 
     def load_data(self, folder_path: Path):
-        self._constants = pickle.load(open(Path(folder_path, "constants.obj"), "rb"))
+        self._constants = pickle.load(Path(folder_path, "constants.obj").open("rb"))
         self._segmentation_views = OctreeVolume.read_from_n5(
             folder_path, "segmentation_views", self.shape_voxel
         )
