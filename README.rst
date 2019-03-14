@@ -1,5 +1,5 @@
 =========
-arbor-seg
+sarbor
 =========
 
 
@@ -9,8 +9,8 @@ arbor-seg
 .. image:: https://img.shields.io/travis/pattonw/sarbor.svg
         :target: https://travis-ci.org/pattonw/sarbor
 
-.. image:: https://readthedocs.org/projects/arbor-seg/badge/?version=latest
-        :target: https://arbor-seg.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/sarbor/badge/?version=latest
+        :target: https://sarbor.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
 
@@ -24,7 +24,7 @@ A package for combining a 3D arbor with a dense volumetric segmentation. Primary
 
 
 * Free software: MIT license
-* Documentation: https://arbor-seg.readthedocs.io.
+* Documentation: https://sarbor.readthedocs.io.
 
 
 Features

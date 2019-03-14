@@ -1,4 +1,4 @@
-Welcome to arbor-seg's documentation!
+Welcome to sarbor's documentation!
 ======================================
 
 .. toctree::

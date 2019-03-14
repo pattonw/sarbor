@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Top-level package for arbor-seg."""
+"""Top-level package for sarbor."""
 
 __author__ = """William Hunter Patton"""
 __email__ = "pattonw@hhmi.org"

@@ -47,7 +47,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'arbor-seg'
+project = u'sarbor'
 copyright = u"2019, William Hunter Patton"
 author = u"William Hunter Patton"
 
@@ -129,7 +129,7 @@ latex_elements = {
 # [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'sarbor.tex',
-     u'arbor-seg Documentation',
+     u'sarbor Documentation',
      u'William Hunter Patton', 'manual'),
 ]
 
@@ -140,7 +140,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     (master_doc, 'sarbor',
-     u'arbor-seg Documentation',
+     u'sarbor Documentation',
      [author], 1)
 ]
 
@@ -152,7 +152,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (master_doc, 'sarbor',
-     u'arbor-seg Documentation',
+     u'sarbor Documentation',
      author,
      'sarbor',
      'One line description of project.',

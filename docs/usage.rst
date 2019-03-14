@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use arbor-seg in a project::
+To use sarbor in a project::
 
     import sarbor
