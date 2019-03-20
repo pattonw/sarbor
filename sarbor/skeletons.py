@@ -3,6 +3,7 @@ import math
 from scipy.ndimage import gaussian_filter1d
 import time
 import logging
+import pickle
 
 from .arbors import SpatialArbor, Node
 from .segmentations import SegmentationSource
@@ -220,6 +221,64 @@ class Skeleton:
         nodes, masks = self.arbor.extract_data()
         segmentation_data = self.seg.extract_data()
         return nodes, masks, segmentation_data
+
+    def save_data_for_CATMAID(
+        self,
+        output_file_base: str,
+        nodes: bool = False,
+        rankings: bool = True,
+        n5: bool = True,
+        masks: bool = False,
+    ):
+        if nodes:
+            ns = [
+                (
+                    node.key,
+                    node.paren_key,
+                    node.value.center[0],
+                    node.value.center[1],
+                    node.value.center[2],
+                )
+                for node in self.get_nodes()
+            ]
+            pickle.dump(ns, open(output_file_base + "_nodes.obj", "wb"))
+
+        if rankings:
+            self.save_rankings(output_file_base + "_rankings")
+        if n5:
+            self.seg.save_data(output_file_base)
+        if masks:
+            nid_mask_map = {node.key: node.value.mask for node in self.get_nodes}
+            pickle.dump(nid_mask_map, open(output_file_base + "_masks.obj", "wb"))
+
+    def save_rankings(self, output_file="ranking_data"):
+        connectivity_rankings = self.get_node_connectivity()
+        branch_rankings = self.get_nid_branch_score_map()
+        ranking_data = [
+            (
+                "nid",
+                "pid",
+                "connectivity_score",
+                "branch_score",
+                "branch_dz",
+                "branch_dy",
+                "branch_dx",
+            )
+        ]
+        for node in self.get_nodes():
+            ranking_data.append(
+                (
+                    node.key,
+                    connectivity_rankings[node.key][0],
+                    connectivity_rankings[node.key][1],
+                    branch_rankings[node.key][1],
+                    branch_rankings[node.key][0][0],
+                    branch_rankings[node.key][0][1],
+                    branch_rankings[node.key][0][2],
+                )
+            )
+        data = np.array(ranking_data)
+        np.savetxt("{}.csv".format(output_file), data, delimiter=",", fmt="%s")
 
     # ----Editing Skeleton Data-----
 
@@ -627,35 +686,6 @@ class Skeleton:
                     else:
                         costs[i, j, k] = min(current_score, np.max(costs[region]))
         return costs[-1, -1, -1]
-
-    def save_rankings(self, output_file="ranking_data"):
-        connectivity_rankings = self.get_node_connectivity()
-        branch_rankings = self.get_nid_branch_score_map()
-        ranking_data = [
-            (
-                "nid",
-                "pid",
-                "connectivity_score",
-                "branch_score",
-                "branch_dz",
-                "branch_dy",
-                "branch_dx",
-            )
-        ]
-        for node in self.get_nodes():
-            ranking_data.append(
-                (
-                    node.key,
-                    connectivity_rankings[node.key][0],
-                    connectivity_rankings[node.key][1],
-                    branch_rankings[node.key][1],
-                    branch_rankings[node.key][0][0],
-                    branch_rankings[node.key][0][1],
-                    branch_rankings[node.key][0][2],
-                )
-            )
-        data = np.array(ranking_data)
-        np.savetxt("{}.csv".format(output_file), data, delimiter=",", fmt="%s")
 
     def calculate_strahlers(self):
         self.arbor.calculate_strahler_indicies()
