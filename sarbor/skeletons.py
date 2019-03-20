@@ -627,6 +627,8 @@ class Skeleton:
         """
         simply look at the overlap of two neighboring masks
         """
+        if node_a.value.mask is None or node_b.value.mask is None:
+            return -1
         roi_a = self.seg.get_roi(node_a.value.center)
         roi_b = self.seg.get_roi(node_b.value.center)
         roi_ab = (np.maximum(roi_a[0], roi_b[0]), np.minimum(roi_a[1], roi_b[1]))
