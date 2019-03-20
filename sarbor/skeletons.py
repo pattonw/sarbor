@@ -632,23 +632,31 @@ class Skeleton:
         roi_a = self.seg.get_roi(node_a.value.center)
         roi_b = self.seg.get_roi(node_b.value.center)
         roi_ab = (np.maximum(roi_a[0], roi_b[0]), np.minimum(roi_a[1], roi_b[1]))
-        if any(roi_ab[0] > roi_ab[1]):
+        if any(roi_ab[0] >= roi_ab[1]):
             logging.warn(
                 "Nodes {} and {} do not have overlapping masks!".format(
                     node_a.key, node_b.key
                 )
             )
-            return 0
-        a_slices = self.seg.transform_bounds(
-            (roi_ab[0] - roi_a[0], roi_ab[1] - roi_a[0])
-        )
-        b_slices = self.seg.transform_bounds(
-            (roi_ab[0] - roi_b[0], roi_ab[1] - roi_b[0])
-        )
-        return sum(
-            (node_a.value.mask[a_slices] + node_b.value.mask[b_slices] == 2)
-            / np.prod((roi_ab[1] - roi_ab[0]) / self.seg.voxel_resolution)
-        )
+            return -2
+        try:
+            a_slices = self.seg.transform_bounds(
+                (roi_ab[0] - roi_a[0], roi_ab[1] - roi_a[0])
+            )
+            b_slices = self.seg.transform_bounds(
+                (roi_ab[0] - roi_b[0], roi_ab[1] - roi_b[0])
+            )
+            return sum(
+                (node_a.value.mask[a_slices] + node_b.value.mask[b_slices] == 2)
+                / np.prod((roi_ab[1] - roi_ab[0]) / self.seg.voxel_resolution)
+            )
+        except AssertionError as e:
+            logging.warn(
+                "Node ({}, {}) connection failed due to: ".format(
+                    node_a.key, node_b.key, e
+                )
+            )
+            return -3
 
     def get_connectivity_path(self, index_a: np.ndarray, index_b: np.ndarray):
         """
