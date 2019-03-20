@@ -269,8 +269,11 @@ class Skeleton:
             ranking_data.append(
                 (
                     node.key,
-                    connectivity_rankings[node.key][0],
-                    connectivity_rankings[node.key][1],
+                    node.parent_key,
+                    connectivity_rankings.get((node.key, node.parent_key), [None])[0],
+                    connectivity_rankings.get(
+                        (node.key, node.parent_key), [None, None]
+                    )[1],
                     branch_rankings[node.key][1],
                     branch_rankings[node.key][0][0],
                     branch_rankings[node.key][0][1],
