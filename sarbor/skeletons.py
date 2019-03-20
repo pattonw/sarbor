@@ -230,6 +230,7 @@ class Skeleton:
         n5: bool = True,
         masks: bool = False,
     ):
+        self.seg.create_octrees_from_nodes(nodes=self.get_nodes())
         if nodes:
             ns = [
                 (
