@@ -77,10 +77,10 @@ class OctreeVolume(object):
         )
         dataset = pyn5.open(folder, dataset)
         for leaf in self.iter_leaves():
-            pyn5.write(dataset, leaf.bounds, leaf.data)
+            pyn5.write(dataset, leaf.bounds, leaf.data, self.dtype)
 
     def read_from_n5(self, folder, dataset, bounds):
-        img = pyn5.read(pyn5.open(folder, dataset), bounds)
+        img = pyn5.read(pyn5.open(folder, dataset), bounds, self.dtype)
         self[list(map(slice, bounds[0], bounds[1]))] = img
 
     @property
