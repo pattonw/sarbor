@@ -649,8 +649,8 @@ class Skeleton:
             b_slices = self.seg.transform_bounds(
                 (roi_ab[0] - roi_b[0], roi_ab[1] - roi_b[0])
             )
-            return sum(
-                (node_a.value.mask[a_slices] + node_b.value.mask[b_slices] == 2)
+            return (
+                (node_a.value.mask[a_slices] + node_b.value.mask[b_slices] == 2).sum()
             ) / (np.prod((roi_ab[1] - roi_ab[0]) / self.seg.voxel_resolution))
         except AssertionError as e:
             logging.warn(
