@@ -271,7 +271,6 @@ class Skeleton:
                 (
                     node.key,
                     node.parent_key,
-                    connectivity_rankings.get((node.key, node.parent_key), [None])[0],
                     connectivity_rankings.get(
                         (node.key, node.parent_key), [None, None]
                     )[1],
@@ -652,8 +651,7 @@ class Skeleton:
             )
             return sum(
                 (node_a.value.mask[a_slices] + node_b.value.mask[b_slices] == 2)
-                / np.prod((roi_ab[1] - roi_ab[0]) / self.seg.voxel_resolution)
-            )
+            ) / (np.prod((roi_ab[1] - roi_ab[0]) / self.seg.voxel_resolution))
         except AssertionError as e:
             logging.warn(
                 "Node ({}, {}) connection failed due to: ".format(
