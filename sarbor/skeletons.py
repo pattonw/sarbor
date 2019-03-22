@@ -229,6 +229,7 @@ class Skeleton:
         rankings: bool = True,
         n5: bool = True,
         masks: bool = False,
+        consensus: bool = False,
     ):
         self.seg.create_octrees_from_nodes(nodes=self.get_nodes())
         if nodes:
@@ -245,16 +246,16 @@ class Skeleton:
             pickle.dump(ns, open(output_file_base + "_nodes.obj", "wb"))
 
         if rankings:
-            self.save_rankings(output_file_base + "_rankings")
+            self.save_rankings(output_file_base + "_rankings", consensus=consensus)
         if n5:
             self.seg.save_data(output_file_base)
         if masks:
             nid_mask_map = {node.key: node.value.mask for node in self.get_nodes}
             pickle.dump(nid_mask_map, open(output_file_base + "_masks.obj", "wb"))
 
-    def save_rankings(self, output_file="ranking_data"):
+    def save_rankings(self, output_file="ranking_data", consensus=False):
         connectivity_rankings = self.get_node_connectivity()
-        branch_rankings = self.get_nid_branch_score_map()
+        branch_rankings = self.get_nid_branch_score_map(consensus=consensus)
         ranking_data = [
             (
                 "nid",
@@ -573,7 +574,7 @@ class Skeleton:
         return sub_nid_branch_score_map
 
     def get_nid_branch_score_map(
-        self, nodes=None, sphere=True, incrDenom=True, consenus=True, key=""
+        self, nodes=None, sphere=True, incrDenom=True, consensus=True, key=""
     ):
         """
         Create a map from node ids to branch scores. Nodes can then be sorted
@@ -605,7 +606,7 @@ class Skeleton:
                 logging.debug(mag)
                 raise ValueError("Direction is NAN!")
 
-        if consenus and not key == "location":
+        if consensus and not key == "location":
             nid_score_map = self._smooth_scores(nid_score_map)
 
         return nid_score_map
@@ -775,7 +776,7 @@ class Skeleton:
             ), "max distance should be 1 at the corners. It is {}".format(
                 dist_component
             )
-            score = (np.max(data))
+            score = np.max(data)
             return (v, score)
 
     def get_dist_weighted_mask(
