@@ -775,11 +775,7 @@ class Skeleton:
             ), "max distance should be 1 at the corners. It is {}".format(
                 dist_component
             )
-            score = (
-                np.linalg.norm(v)
-                / (np.linalg.norm(np.array(data.shape) // 2))
-                * np.max(data)
-            )
+            score = (np.max(data))
             return (v, score)
 
     def get_dist_weighted_mask(
