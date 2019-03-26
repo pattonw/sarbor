@@ -446,22 +446,32 @@ class Skeleton:
         return np.linalg.norm(vec_a - vec_b)
 
     def _smooth_scores(self, nid_score_map):
+        """
+        Don't change the actual vectors, just the scores. The vectors show where
+        missing branches are likely to be, making debugging easier.
+
+        Scores are altered by how much vectors of neighboring nodes agree with this
+        one. This makes debugging much harder, but may give better results.
+        """
         smoothed_map = {}
 
         for nid in nid_score_map:
             node = self.nodes[nid]
             neighbors = node.get_neighbors()
-            combined_vec = np.sum(
-                [
-                    nid_score_map[n.key][0]
-                    * nid_score_map[n.key][1]
-                    / np.linalg.norm(nid_score_map[n.key][0])
-                    for n in neighbors + [node]
-                    if not math.isclose(np.linalg.norm(nid_score_map[n.key][0]), 0)
-                ],
-                axis=0,
+            # average the direction vectors of this node and its neighbors
+            averaged_vec = np.sum(
+                [nid_score_map[n.key][0] for n in neighbors + [node]], axis=0
             ) / (len(neighbors) + 1)
-            smoothed_map[nid] = nid_score_map[nid][0], np.linalg.norm(combined_vec)
+
+            # check how much the average agrees with the original
+            difference = nid_score_map[nid][0] - averaged_vec
+            # 1 multiplier if difference is 0, 0 multiplier if difference is large
+            multiplier = max(
+                1 - np.linalg.norm(difference) / np.linalg.norm(nid_score_map[nid][0]),
+                0,
+            )
+
+            smoothed_map[nid] = nid_score_map[nid][0], nid_score_map[1] * multiplier
         return smoothed_map
 
     def get_sub_nid_branch_scores(
