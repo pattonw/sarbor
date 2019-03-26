@@ -225,7 +225,7 @@ class Skeleton:
     def save_data_for_CATMAID(
         self,
         output_file_base: str,
-        nodes: bool = False,
+        nodes: bool = True,
         rankings: bool = True,
         n5: bool = True,
         masks: bool = False,
@@ -236,7 +236,7 @@ class Skeleton:
             ns = [
                 (
                     node.key,
-                    node.paren_key,
+                    node.parent_key,
                     node.value.center[0],
                     node.value.center[1],
                     node.value.center[2],
@@ -262,9 +262,9 @@ class Skeleton:
                 "pid",
                 "connectivity_score",
                 "branch_score",
-                "branch_dz",
-                "branch_dy",
                 "branch_dx",
+                "branch_dy",
+                "branch_dz",
             )
         ]
         for node in self.get_nodes():
@@ -798,6 +798,13 @@ class Skeleton:
         return self.seg.view_weighted_mask(
             center, incr_denom=int(increment_denominator), sphere=sphere
         )
+
+    def filter_nodes_by_strahler(self, min_strahler: int, max_strahler: int):
+        self.calculate_strahlers()
+        keep_nodes = filter(
+            lambda node: min_strahler <= node.strahler <= max_strahler, self.get_nodes()
+        )
+        self.input_nodes(keep_nodes)
 
     def resample_segments(self, delta, steps, sigma_fraction):
         """
