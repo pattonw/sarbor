@@ -225,7 +225,7 @@ class Skeleton:
     def save_data_for_CATMAID(
         self,
         output_file_base: str,
-        nodes: bool = False,
+        nodes: bool = True,
         rankings: bool = True,
         n5: bool = True,
         masks: bool = False,
