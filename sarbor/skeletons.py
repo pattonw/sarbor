@@ -471,7 +471,10 @@ class Skeleton:
                 0,
             )
 
-            smoothed_map[nid] = nid_score_map[nid][0], nid_score_map[1] * multiplier
+            smoothed_map[nid] = (
+                nid_score_map[nid][0],
+                nid_score_map[nid][1] * multiplier,
+            )
         return smoothed_map
 
     def get_sub_nid_branch_scores(
