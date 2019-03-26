@@ -799,6 +799,11 @@ class Skeleton:
             center, incr_denom=int(increment_denominator), sphere=sphere
         )
 
+    def filter_nodes_by_strahler(self, min_strahler: int, max_strahler: int):
+        self.calculate_strahlers()
+        keep_nodes = filter(lambda node: min_strahler <= node.strahler <= max_strahler)
+        self.input_nodes(keep_nodes)
+
     def resample_segments(self, delta, steps, sigma_fraction):
         """
         resample tree to have evenly spaced nodes. Gaussian smooth the curve
