@@ -259,8 +259,8 @@ class SegmentationSource:
             self.distances[node_bounds] = np.minimum(
                 self.distances[node_bounds], dist_block
             )
-            if interpolate_dist_nodes > 0:
-                for neighbor in node.get_neighbors():
+            if interpolate_dist_nodes > 0 and node.children is not None:
+                for neighbor in node.children:
                     for k in range(1, interpolate_dist_nodes + 1):
                         linear_step = neighbor.value.center * k / (
                             interpolate_dist_nodes + 1
