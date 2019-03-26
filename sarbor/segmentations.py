@@ -303,8 +303,8 @@ class SegmentationSource:
         return list(
             map(
                 slice,
-                bounds[0] // self.voxel_resolution,
-                bounds[1] // self.voxel_resolution,
+                (bounds[0] // self.voxel_resolution).astype(int),
+                (bounds[1] // self.voxel_resolution).astype(int),
             )
         )
 
