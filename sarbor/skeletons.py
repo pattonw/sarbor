@@ -236,7 +236,7 @@ class Skeleton:
             ns = [
                 (
                     node.key,
-                    node.paren_key,
+                    node.parent_key,
                     node.value.center[0],
                     node.value.center[1],
                     node.value.center[2],
@@ -262,9 +262,9 @@ class Skeleton:
                 "pid",
                 "connectivity_score",
                 "branch_score",
-                "branch_dz",
-                "branch_dy",
                 "branch_dx",
+                "branch_dy",
+                "branch_dz",
             )
         ]
         for node in self.get_nodes():
