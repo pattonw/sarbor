@@ -635,7 +635,7 @@ class Skeleton:
         for node in self.get_nodes():
             if node.parent is not None:
                 nid_score_map[(node.key, node.parent_key)] = (
-                    (tuple((node.value.center), tuple(node.parent.value.center))),
+                    (tuple(node.value.center), tuple(node.parent.value.center)),
                     self.get_connection(node, node.parent),
                 )
         return nid_score_map
