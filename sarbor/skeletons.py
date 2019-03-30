@@ -969,3 +969,11 @@ class Skeleton:
         )
         return new_skeleton
 
+    def get_closest_node(self, location: np.ndarray):
+        closest = None
+        dist = 0
+        for node in self.nodes:
+            if closest is None or np.linalg.norm(node.value.center - location) < dist:
+                closest = node
+                dist = np.linalg.norm(node.value.center)
+
