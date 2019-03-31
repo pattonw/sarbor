@@ -976,4 +976,5 @@ class Skeleton:
             if closest is None or np.linalg.norm(node.value.center - location) < dist:
                 closest = node
                 dist = np.linalg.norm(node.value.center)
+        return closest
 
