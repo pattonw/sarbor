@@ -635,7 +635,7 @@ class Skeleton:
         for node in self.get_nodes():
             if node.parent is not None:
                 nid_score_map[(node.key, node.parent_key)] = (
-                    tuple((node.value.center + node.parent.value.center) // 2),
+                    (node.value.center, node.parent.value.center),
                     self.get_connection(node, node.parent),
                 )
         return nid_score_map
@@ -968,4 +968,13 @@ class Skeleton:
             )
         )
         return new_skeleton
+
+    def get_closest_node(self, location: np.ndarray):
+        closest = None
+        dist = 0
+        for nid, node in self.nodes.items():
+            if closest is None or np.linalg.norm(node.value.center - location) < dist:
+                closest = node
+                dist = np.linalg.norm(node.value.center)
+        return closest
 

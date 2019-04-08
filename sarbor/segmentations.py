@@ -241,7 +241,12 @@ class SegmentationSource:
         ).reshape(1, 1, dimensions[2])
         return (x + y + z) ** (0.5) / np.sum((half_dim * resolution) ** 2) ** (0.5)
 
-    def create_octrees_from_nodes(self, nodes: Iterable[Node], sphere: bool = False):
+    def create_octrees_from_nodes(
+        self,
+        nodes: Iterable[Node],
+        sphere: bool = False,
+        interpolate_dist_nodes: int = 0,
+    ):
         dist_block = self._dist_block(self.fov_shape_voxels, self.voxel_resolution)
         if sphere:
             dist_block[np.logical_not(self.sphere)] = float("inf")
@@ -254,6 +259,18 @@ class SegmentationSource:
             self.distances[node_bounds] = np.minimum(
                 self.distances[node_bounds], dist_block
             )
+            if interpolate_dist_nodes > 0 and node.children is not None:
+                for neighbor in node.children:
+                    for k in range(1, interpolate_dist_nodes + 1):
+                        linear_step = neighbor.value.center * k / (
+                            interpolate_dist_nodes + 1
+                        ) + node.value.center * (interpolate_dist_nodes - k) / (
+                            interpolate_dist_nodes + 1
+                        )
+                        mid_bounds = self.transform_bounds(self.get_roi(linear_step))
+                        self.distances[mid_bounds] = np.minimum(
+                            self.distances[mid_bounds], dist_block
+                        )
 
     def save_data(self, folder_path: Path):
         """
