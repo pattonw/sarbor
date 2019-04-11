@@ -414,10 +414,6 @@ class Skeleton:
         """
         resample tree to have evenly spaced nodes. Gaussian smooth the curve
         and then sample at regular intervals.
-
-        inputs: tree, nodes, regions or coords (nodes makes most sense I think)
-        outputs: tree, nodes, regions or coords (coords makes most sense I think)
-        io can then generate a new skeleton from coords
         """
 
         # store tail points so that we can use them as roots
