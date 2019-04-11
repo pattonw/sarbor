@@ -4,9 +4,11 @@ from scipy.ndimage import gaussian_filter1d
 import time
 import logging
 import pickle
+from pathlib import Path
 
 from .arbors import SpatialArbor, Node
 from .segmentations import SegmentationSource
+from .config import Config, SkeletonConfig
 
 from typing import Tuple, Dict, List, Any
 
@@ -15,20 +17,27 @@ Bounds = Tuple[np.ndarray, np.ndarray]
 
 
 class Skeleton:
-    def __init__(self):
+    def __init__(self, config: Config = None):
+        if config is None:
+            config = Config()
         # Data sources
         self._arbor = SpatialArbor()
-        self._seg = SegmentationSource()
+        self._seg = SegmentationSource(config.segmentations_config)
+        self._config = config
 
         # floodfilling specific properties
         self.filled = {}
 
     def clone(self):
         # TODO: this function is outdated
-        new_skeleton = Skeleton()
+        new_skeleton = Skeleton(self._config)
         return new_skeleton
 
     # -----PROPERTIES-----
+    @property
+    def config(self) -> SkeletonConfig:
+        return self._config.skeleton_config
+
     @property
     def nodes(self) -> Dict[int, Node]:
         return self.arbor.nodes
@@ -144,7 +153,9 @@ class Skeleton:
             logging.info("No nodes lost!")
         else:
             sizes = [len(list(node.traverse())) for node in roots]
-            logging.warn("{} nodes excluded from tree!".format(sum(sizes) - max(sizes)))
+            logging.warning(
+                "{} nodes excluded from tree!".format(sum(sizes) - max(sizes))
+            )
             self.arbor.build_from_root(roots[sizes.index(max(sizes))])
 
     def is_filled(self, nid: int) -> bool:
@@ -162,59 +173,6 @@ class Skeleton:
         node.value.mask = mask
         self.filled[nid] = True
 
-    # def input_n5_data(self, folder_path, skeleton_dir, datasets):
-    #    """
-    #    Skips directly to filling out octrees with data without storing
-    #    any segmentation data in nodes. Useful when your analysis does
-    #    not depend on the individual contributions of each node
-    #    """
-    #    do_seg = "segmentation" in datasets
-    #    do_counts = "counts" in datasets
-    #    if do_seg or do_counts:
-    #        num_nodes = len(list(self.get_nodes()))
-    #        done_nodes = 0
-    #        section_bounds = None
-    #        for node in self.get_nodes(fifo=True):
-    #            node_bounds = (
-    #                node.value.bounds
-    #                if node.value.bounds is not None
-    #                else node.value.get_bounds(self.fov_shape)
-    #            )
-    #            if section_bounds is None:
-    #                section_bounds = node_bounds
-    #            combined_bounds = (
-    #                np.minimum(section_bounds[0], node_bounds[0]),
-    #                np.maximum(section_bounds[1], node_bounds[1]),
-    #            )
-    #            if all(combined_bounds[1] - combined_bounds[0] < self.fov_shape * 2):
-    #                section_bounds = combined_bounds
-    #                done_nodes += 1
-    #            else:
-    #                if do_seg:
-    #                    self.segmentation.read_from_n5(
-    #                        folder_path, skeleton_dir + "/segmentation", section_bounds
-    #                    )
-    #                if do_counts:
-    #                    self.segmentation_counts.read_from_n5(
-    #                        folder_path, skeleton_dir + "/counts", section_bounds
-    #                    )
-    #                section_bounds = node_bounds
-    #                done_nodes += 1
-    #                logging.debug(
-    #                    "{}/{} ({:.2f}%) done".format(
-    #                        done_nodes, num_nodes, done_nodes / num_nodes * 100
-    #                    )
-    #                )
-    #
-    #        if do_seg:
-    #            self.segmentation.read_from_n5(
-    #                folder_path, skeleton_dir + "/segmentation", section_bounds
-    #            )
-    #        if do_counts:
-    #            self.segmentation_counts.read_from_n5(
-    #                folder_path, skeleton_dir + "/counts", section_bounds
-    #            )
-
     # ----Extracting Skeleton Data-----
 
     def extract_data(self):
@@ -222,17 +180,10 @@ class Skeleton:
         segmentation_data = self.seg.extract_data()
         return nodes, masks, segmentation_data
 
-    def save_data_for_CATMAID(
-        self,
-        output_file_base: str,
-        nodes: bool = True,
-        rankings: bool = True,
-        n5: bool = True,
-        masks: bool = False,
-        consensus: bool = False,
-    ):
+    def save_data_for_CATMAID(self):
+        Path(self.config.output_file_base).mkdir(parents=True, exist_ok=False)
         self.seg.create_octrees_from_nodes(nodes=self.get_nodes())
-        if nodes:
+        if self.config.save_nodes:
             ns = [
                 (
                     node.key,
@@ -243,15 +194,43 @@ class Skeleton:
                 )
                 for node in self.get_nodes()
             ]
-            pickle.dump(ns, open(output_file_base + "_nodes.obj", "wb"))
+            pickle.dump(ns, open(self.config.output_file_base + "/nodes.obj", "wb"))
 
-        if rankings:
-            self.save_rankings(output_file_base + "_rankings", consensus=consensus)
-        if n5:
-            self.seg.save_data(output_file_base)
-        if masks:
-            nid_mask_map = {node.key: node.value.mask for node in self.get_nodes}
-            pickle.dump(nid_mask_map, open(output_file_base + "_masks.obj", "wb"))
+        if self.config.save_rankings:
+            self.save_rankings(
+                self.config.output_file_base + "/rankings",
+                consensus=self.config.use_consensus,
+            )
+        if self.config.save_segmentations:
+            self.seg.save_data(self.config.output_file_base)
+        if self.config.save_masks:
+            nid_mask_map = {node.key: node.value.mask for node in self.get_nodes()}
+            pickle.dump(
+                nid_mask_map, open(self.config.output_file_base + "/masks.obj", "wb")
+            )
+        if self.config.save_config:
+            self._config.to_toml(self.config.output_file_base + "/config.toml")
+
+    def load(self, output_file_base):
+        try:
+            with open(output_file_base + "/nodes.obj", "rb") as f:
+                nodes = pickle.load(f)
+            self.input_nid_pid_x_y_z(nodes)
+        except FileNotFoundError:
+            logging.warning("Node file not found")
+
+        try:
+            with open(output_file_base + "/masks.obj", "rb") as f:
+                nid_mask_map = pickle.load(f)
+            for nid, mask in nid_mask_map.items():
+                self.nodes[nid].value.mask = mask
+        except FileNotFoundError:
+            logging.warning("Masks not found")
+
+        try:
+            self._config.from_toml(output_file_base + "/config.toml")
+        except FileNotFoundError:
+            logging.warning("Config file is necessary to get reliable results")
 
     def save_rankings(self, output_file="ranking_data", consensus=False):
         connectivity_rankings = self.get_node_connectivity()
@@ -799,7 +778,7 @@ class Skeleton:
         increment_denominator=False,
         sphere=True,
     ) -> np.ndarray:
-        return self.seg.dist_view_weighted_mask(center, sphere=sphere)
+        return self.seg.dist_view_weighted_mask(center)
 
     def get_count_weighted_mask(
         self,
@@ -819,7 +798,7 @@ class Skeleton:
         )
         self.input_nodes(keep_nodes)
 
-    def resample_segments(self, delta, steps, sigma_fraction):
+    def resample_segments(self):
         """
         resample tree to have evenly spaced nodes. Gaussian smooth the curve
         and then sample at regular intervals.
@@ -874,12 +853,7 @@ class Skeleton:
 
             # get interpolated nodes. (TAIL included but not Root)
             new_interpolated_nodes, new_node_id = self.resample_segment(
-                segment,
-                delta,
-                steps,
-                sigma_fraction,
-                new_node_id,
-                branch_points[segment[0].key],
+                segment, new_node_id, branch_points[segment[0].key]
             )
             # handle the tail node (new_tail will be empty list if not needed)
             branch_points[segment[-1].key] = new_interpolated_nodes[-1]
@@ -889,8 +863,8 @@ class Skeleton:
         new_skeleton.input_nid_pid_x_y_z(new_tree_nodes)
         return new_skeleton
 
-    def resample_segment(self, nodes, delta, steps, sigma_fraction, new_node_id, root):
-        def get_smoothed(coords, steps=100, sigma_fraction=0.001):
+    def resample_segment(self, nodes, new_node_id, root):
+        def get_smoothed(coords, steps, sigma_fraction):
             x_y_z = list(zip(*coords))
             t = np.linspace(0, 1, len(coords))
             t2 = np.linspace(0, 1, steps)
@@ -931,9 +905,16 @@ class Skeleton:
                 yield end
 
         coords = [node.value.center for node in nodes]
-        smoothed_coords = list(get_smoothed(coords, steps, sigma_fraction))
+        smoothed_coords = list(
+            get_smoothed(coords, self.config.resample_steps, self.config.resample_sigma)
+        )
         downsampled_coords = list(
-            downsample(smoothed_coords, delta, root[2:], nodes[-1].value.center)
+            downsample(
+                smoothed_coords,
+                self.config.resample_delta,
+                root[2:],
+                nodes[-1].value.center,
+            )
         )
         previous_id = root[0]
         current_id = new_node_id
