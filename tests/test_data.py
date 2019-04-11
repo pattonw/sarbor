@@ -86,4 +86,3 @@ class TestSarborReal(unittest.TestCase):
         ), "min dist is {} but should be greater than {}".format(
             np.min(distances), sampled_skel.config.resample_delta * 0.5
         )
-
