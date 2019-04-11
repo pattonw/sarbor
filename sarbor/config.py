@@ -160,9 +160,10 @@ class SegmentationsConfig(BaseConfig):
         ), "Conflicting FOV shapes were defined: {} vs {}".format(
             self.fov_shape_phys, self.fov_shape_voxels * self.voxel_resolution
         )
-        assert all(
-            np.equal(self.fov_shape_voxels % 2, np.ones([3]))
-        ), f"FOV shape {self.fov_shape_voxels} has to have an odd number of voxels on each axis to have a center voxel"
+        assert all(np.equal(self.fov_shape_voxels % 2, np.ones([3]))), (
+            "FOV shape {} has to have an odd number of"
+            + " voxels on each axis to have a center voxel"
+        ).format(self.fov_shape_voxels)
 
 
 class SkeletonConfig(BaseConfig):
