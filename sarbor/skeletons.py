@@ -4,9 +4,11 @@ from scipy.ndimage import gaussian_filter1d
 import time
 import logging
 import pickle
+from pathlib import Path
 
 from .arbors import SpatialArbor, Node
 from .segmentations import SegmentationSource
+from .config import Config, SkeletonConfig
 
 from typing import Tuple, Dict, List, Any
 
@@ -15,20 +17,27 @@ Bounds = Tuple[np.ndarray, np.ndarray]
 
 
 class Skeleton:
-    def __init__(self):
+    def __init__(self, config: Config = None):
+        if config is None:
+            config = Config()
         # Data sources
         self._arbor = SpatialArbor()
-        self._seg = SegmentationSource()
+        self._seg = SegmentationSource(config.segmentations_config)
+        self._config = config
 
         # floodfilling specific properties
         self.filled = {}
 
     def clone(self):
-        # TODO: this function is outdated
-        new_skeleton = Skeleton()
+        logging.warning("deprecated: This function only copies the config!")
+        new_skeleton = Skeleton(self._config)
         return new_skeleton
 
     # -----PROPERTIES-----
+    @property
+    def config(self) -> SkeletonConfig:
+        return self._config.skeleton_config
+
     @property
     def nodes(self) -> Dict[int, Node]:
         return self.arbor.nodes
@@ -144,7 +153,9 @@ class Skeleton:
             logging.info("No nodes lost!")
         else:
             sizes = [len(list(node.traverse())) for node in roots]
-            logging.warn("{} nodes excluded from tree!".format(sum(sizes) - max(sizes)))
+            logging.warning(
+                "{} nodes excluded from tree!".format(sum(sizes) - max(sizes))
+            )
             self.arbor.build_from_root(roots[sizes.index(max(sizes))])
 
     def is_filled(self, nid: int) -> bool:
@@ -162,59 +173,6 @@ class Skeleton:
         node.value.mask = mask
         self.filled[nid] = True
 
-    # def input_n5_data(self, folder_path, skeleton_dir, datasets):
-    #    """
-    #    Skips directly to filling out octrees with data without storing
-    #    any segmentation data in nodes. Useful when your analysis does
-    #    not depend on the individual contributions of each node
-    #    """
-    #    do_seg = "segmentation" in datasets
-    #    do_counts = "counts" in datasets
-    #    if do_seg or do_counts:
-    #        num_nodes = len(list(self.get_nodes()))
-    #        done_nodes = 0
-    #        section_bounds = None
-    #        for node in self.get_nodes(fifo=True):
-    #            node_bounds = (
-    #                node.value.bounds
-    #                if node.value.bounds is not None
-    #                else node.value.get_bounds(self.fov_shape)
-    #            )
-    #            if section_bounds is None:
-    #                section_bounds = node_bounds
-    #            combined_bounds = (
-    #                np.minimum(section_bounds[0], node_bounds[0]),
-    #                np.maximum(section_bounds[1], node_bounds[1]),
-    #            )
-    #            if all(combined_bounds[1] - combined_bounds[0] < self.fov_shape * 2):
-    #                section_bounds = combined_bounds
-    #                done_nodes += 1
-    #            else:
-    #                if do_seg:
-    #                    self.segmentation.read_from_n5(
-    #                        folder_path, skeleton_dir + "/segmentation", section_bounds
-    #                    )
-    #                if do_counts:
-    #                    self.segmentation_counts.read_from_n5(
-    #                        folder_path, skeleton_dir + "/counts", section_bounds
-    #                    )
-    #                section_bounds = node_bounds
-    #                done_nodes += 1
-    #                logging.debug(
-    #                    "{}/{} ({:.2f}%) done".format(
-    #                        done_nodes, num_nodes, done_nodes / num_nodes * 100
-    #                    )
-    #                )
-    #
-    #        if do_seg:
-    #            self.segmentation.read_from_n5(
-    #                folder_path, skeleton_dir + "/segmentation", section_bounds
-    #            )
-    #        if do_counts:
-    #            self.segmentation_counts.read_from_n5(
-    #                folder_path, skeleton_dir + "/counts", section_bounds
-    #            )
-
     # ----Extracting Skeleton Data-----
 
     def extract_data(self):
@@ -222,17 +180,10 @@ class Skeleton:
         segmentation_data = self.seg.extract_data()
         return nodes, masks, segmentation_data
 
-    def save_data_for_CATMAID(
-        self,
-        output_file_base: str,
-        nodes: bool = True,
-        rankings: bool = True,
-        n5: bool = True,
-        masks: bool = False,
-        consensus: bool = False,
-    ):
+    def save_data_for_CATMAID(self):
+        Path(self.config.output_file_base).mkdir(parents=True, exist_ok=False)
         self.seg.create_octrees_from_nodes(nodes=self.get_nodes())
-        if nodes:
+        if self.config.save_nodes:
             ns = [
                 (
                     node.key,
@@ -243,15 +194,43 @@ class Skeleton:
                 )
                 for node in self.get_nodes()
             ]
-            pickle.dump(ns, open(output_file_base + "_nodes.obj", "wb"))
+            pickle.dump(ns, open(self.config.output_file_base + "/nodes.obj", "wb"))
 
-        if rankings:
-            self.save_rankings(output_file_base + "_rankings", consensus=consensus)
-        if n5:
-            self.seg.save_data(output_file_base)
-        if masks:
-            nid_mask_map = {node.key: node.value.mask for node in self.get_nodes}
-            pickle.dump(nid_mask_map, open(output_file_base + "_masks.obj", "wb"))
+        if self.config.save_rankings:
+            self.save_rankings(
+                self.config.output_file_base + "/rankings",
+                consensus=self.config.use_consensus,
+            )
+        if self.config.save_segmentations:
+            self.seg.save_data(self.config.output_file_base)
+        if self.config.save_masks:
+            nid_mask_map = {node.key: node.value.mask for node in self.get_nodes()}
+            pickle.dump(
+                nid_mask_map, open(self.config.output_file_base + "/masks.obj", "wb")
+            )
+        if self.config.save_config:
+            self._config.to_toml(self.config.output_file_base + "/config.toml")
+
+    def load(self, output_file_base):
+        try:
+            with open(output_file_base + "/nodes.obj", "rb") as f:
+                nodes = pickle.load(f)
+            self.input_nid_pid_x_y_z(nodes)
+        except FileNotFoundError:
+            logging.warning("Node file not found")
+
+        try:
+            with open(output_file_base + "/masks.obj", "rb") as f:
+                nid_mask_map = pickle.load(f)
+            for nid, mask in nid_mask_map.items():
+                self.nodes[nid].value.mask = mask
+        except FileNotFoundError:
+            logging.warning("Masks not found")
+
+        try:
+            self._config.from_toml(output_file_base + "/config.toml")
+        except FileNotFoundError:
+            logging.warning("Config file is necessary to get reliable results")
 
     def save_rankings(self, output_file="ranking_data", consensus=False):
         connectivity_rankings = self.get_node_connectivity()
@@ -334,6 +313,39 @@ class Skeleton:
         self.input_nid_pid_x_y_z_strahler(filtered_nodes)
         return num_filtered
 
+    def calculate_strahlers(self):
+        self.arbor.calculate_strahler_indicies()
+
+    def split(self, segment):
+        seg_root = segment[0]
+        seg_tail = segment[-1]
+        upper_nodes = []
+        queue = [self.arbor.root]
+        while len(queue) > 0:
+            current = queue.pop()
+            upper_nodes.append(current.key)
+            if current != seg_root:
+                for child in current.children:
+                    queue.append(child)
+            else:
+                for child in current.children:
+                    if child != segment[1]:
+                        queue.append(child)
+        lower_nodes = []
+        queue = [seg_tail]
+        while len(queue) > 0:
+            current = queue.pop()
+            lower_nodes.append(current.key)
+            for child in current.children:
+                queue.append(child)
+        return (
+            (
+                self.get_minimal_subtree(upper_nodes),
+                self.get_minimal_subtree(lower_nodes),
+            ),
+            (segment[0:2], segment[-1:-3:-1]),
+        )
+
     # -----Retrieving Skeleton Data-----
 
     def get_nodes(self, fifo=False):
@@ -390,6 +402,173 @@ class Skeleton:
 
     def get_constrained_radius(self, node, dx, dy, dz):
         return self.nodes.get_constrained_radius(node, dx, dy, dz)
+
+    def filter_nodes_by_strahler(self, min_strahler: int, max_strahler: int):
+        self.calculate_strahlers()
+        keep_nodes = filter(
+            lambda node: min_strahler <= node.strahler <= max_strahler, self.get_nodes()
+        )
+        self.input_nodes(keep_nodes)
+
+    def resample_segments(self):
+        """
+        resample tree to have evenly spaced nodes. Gaussian smooth the curve
+        and then sample at regular intervals.
+        """
+
+        # store tail points so that we can use them as roots
+        branch_points = {}
+        # create a list of new node points of form (nid, pid, x, y, z)
+        new_tree_nodes = []
+        # new nodes will need new nids/pids thus we will reassign all nids starting at 0
+        new_node_id = 0
+        # get each straight segment
+        for segment in self.get_segments():
+
+            # handle root case. All other segment "roots" will
+            # be handled as tails of previous segments
+            if new_node_id == 0:
+                root = (0, None, *segment[0].value.center)
+                new_node_id += 1
+                new_tree_nodes.append(root)
+                branch_points[segment[0].key] = root
+
+            # get interpolated nodes. includes tail but not root
+            root_key = branch_points[segment[0].key]
+            new_interpolated_nodes, new_node_id = self.resample_segment(
+                segment, new_node_id, root_key
+            )
+
+            # save tail node for future referece if it is a branch
+            if len(segment[-1].children) > 1:
+                branch_points[segment[-1].key] = new_interpolated_nodes[-1]
+
+            new_tree_nodes = new_tree_nodes + new_interpolated_nodes
+
+        # create a new tree with the same config and input the new nodes
+        new_skeleton = self.clone()
+        new_skeleton.input_nid_pid_x_y_z(new_tree_nodes)
+        return new_skeleton
+
+    def resample_segment(self, nodes, new_node_id, root):
+        def get_smoothed(coords, steps, sigma_fraction):
+            x_y_z = list(zip(*coords))
+            t = np.linspace(0, 1, len(coords))
+            t2 = np.linspace(0, 1, steps)
+
+            # linearly interpolate points through each axis independently
+            x_y_z_2 = list(map(lambda x: np.interp(t2, t, x), x_y_z))
+
+            # gaussian smooth points allong each axis
+            x_y_z_3 = list(
+                map(
+                    lambda x: gaussian_filter1d(
+                        x, steps * sigma_fraction, mode="nearest"
+                    ),
+                    x_y_z_2,
+                )
+            )
+
+            # gaussian smooth moves end points, thus we need to
+            # linearly interpolate between original ends and gaussian smoothed ends
+            t = np.linspace(0, 1, 2)
+            t2 = np.linspace(0, 1, steps)
+            start = [[x_y_z[i][0], x_y_z_3[i][0]] for i in range(3)]
+            end = [[x_y_z_3[i][-1], x_y_z[i][-1]] for i in range(3)]
+            start = list(map(lambda x: np.interp(t2, t, x), start))
+            end = list(map(lambda x: np.interp(t2, t, x), end))
+            x_y_z_3 = list(
+                zip(*(list(zip(*start)) + list(zip(*x_y_z_3)) + list(zip(*end))))
+            )
+
+            return zip(*x_y_z_3)
+
+        def downsample(coords, delta, origin, end):
+            previous = coords[0]
+            dist_to_end = np.linalg.norm(np.array(previous) - np.array(coords[-1]))
+
+            for coord in coords[1:]:
+                if dist_to_end < delta * 1.5:
+                    break
+
+                dist = np.linalg.norm(np.array(coord) - np.array(previous))
+                if dist < delta:
+                    continue
+                elif dist > 2 * delta:
+                    raise ValueError(
+                        "your resampling has too few steps to support a delta this small!"
+                    )
+                else:
+                    yield coord
+                    previous = coord
+                    dist_to_end = np.linalg.norm(
+                        np.array(previous) - np.array(coords[-1])
+                    )
+
+            if not np.allclose(previous, coords[-1]):
+                # yield end point if not already done
+                yield coords[-1]
+
+        coords = [node.value.center for node in nodes]
+
+        # contains both end points
+        smoothed_coords = list(
+            get_smoothed(coords, self.config.resample_steps, self.config.resample_sigma)
+        )
+
+        # does not contain root
+        downsampled_coords = list(
+            downsample(
+                smoothed_coords,
+                self.config.resample_delta,
+                root[2:],
+                nodes[-1].value.center,
+            )
+        )
+
+        # return new downsampled nodes
+        previous_id = root[0]
+        current_id = new_node_id
+        downsampled_nodes = []
+        for coord in downsampled_coords:
+            node = (current_id, previous_id, coord[0], coord[1], coord[2])
+            previous_id = current_id
+            current_id += 1
+            downsampled_nodes.append(node)
+
+        return downsampled_nodes, new_node_id + len(downsampled_nodes)
+
+    def get_regularness(self):
+        """
+        Get mean, std and outliers for distance between nodes.
+        Determine whether skeleton needs to be resampled or not
+        """
+        raise NotImplementedError("not done yet")
+
+    def delete_branch(self, branch_chop: Tuple[int, int]):
+        self.calculate_strahlers()
+        keep_root = self.arbor.nodes[branch_chop[0]]
+        while keep_root.parent_key not in (None, branch_chop[1]):
+            keep_root = keep_root.parent
+
+        keep_nodes = keep_root.traverse(ignore=[branch_chop[1]])
+        new_skeleton = self.clone()
+        new_skeleton.input_nodes(keep_nodes)
+        logging.debug(
+            "Original skeleton size {} vs chopped skeleton size {}".format(
+                len(self.get_nodes()), len(new_skeleton.get_nodes())
+            )
+        )
+        return new_skeleton
+
+    def get_closest_node(self, location: np.ndarray):
+        closest = None
+        dist = 0
+        for nid, node in self.nodes.items():
+            if closest is None or np.linalg.norm(node.value.center - location) < dist:
+                closest = node
+                dist = np.linalg.norm(node.value.center)
+        return closest
 
     # -----Other-----
 
@@ -476,115 +655,6 @@ class Skeleton:
                 nid_score_map[nid][1] * multiplier,
             )
         return smoothed_map
-
-    def get_sub_nid_branch_scores(
-        self,
-        full_mask,
-        all_scores,
-        smooth=True,
-        sphere=True,
-        incrDenom=True,
-        mass=True,
-        DEBUG=None,
-    ):
-        nodes = []
-        skipped = 0
-        for node in self.get_nodes():
-            node_bounds = node.value.get_bounds(self.fov_shape)
-            node_bounds = list(map(slice, node_bounds[0], node_bounds[1]))
-            sub_mask = self.segmentation[node_bounds]
-            whole_mask = full_mask[node_bounds]
-            if (
-                not np.array_equal(sub_mask, whole_mask)
-                or tuple(node.value.center) not in all_scores
-            ):
-                nodes.append(node)
-            else:
-                skipped += 1
-        logging.debug(
-            "{}/{} nodes recalculated".format(len(nodes), skipped + len(nodes))
-        )
-        small_radius_scores = self.get_nid_branch_score_map(
-            nodes=nodes, sphere=sphere, mass=mass, incrDenom=incrDenom
-        )
-
-        sub_nid_branch_score_map = {}
-        for node in self.get_nodes():
-            if node.key in small_radius_scores:
-                sub_nid_branch_score_map[node.key] = small_radius_scores[node.key]
-            else:
-                sub_nid_branch_score_map[node.key] = all_scores[
-                    tuple(node.value.center)
-                ]
-
-        if smooth:
-            sub_nid_branch_score_map = self._smooth_scores(sub_nid_branch_score_map)
-
-        return sub_nid_branch_score_map
-
-    def get_sub_nid_branch_score_map(
-        self,
-        close_nodes,
-        nid_score_map,
-        smooth=True,
-        sphere=True,
-        incrDenom=True,
-        mass=True,
-        DEBUG=None,
-    ):
-        """
-        This function is mostly used for debugging purposes. Given that you know
-        a specific node is a branch point, you can delete a branch, and then find
-        all nodes where the nodes field of view overlaps with any node in the now
-        deleted branch. Since clearly any node whose field of view does not overlap
-        will not have its branch score changed by removing distant nodes. This greatly
-        reduces computation time needed to validate larger datasets.
-        """
-        # Assumes Two halves of the neuron do not come near each other
-        large_radius = [
-            self.nodes[key]
-            for key in self.get_radius_around_group(close_nodes, self.fov_shape)
-        ]
-        t1 = time.time()
-        self.seg.create_octrees_from_nodes(nodes=large_radius)
-        t2 = time.time()
-        if DEBUG == "TIME":
-            logging.debug(
-                "\tCreating Octrees took {} seconds, {} per node with {} nodes".format(
-                    round(t2 - t1),
-                    round((t2 - t1) / len(large_radius), 1),
-                    len(large_radius),
-                )
-            )
-
-        t1 = time.time()
-        small_radius_scores = self.get_nid_branch_score_map(
-            nodes=[self.nodes[key] for key in close_nodes],
-            sphere=sphere,
-            mass=mass,
-            incrDenom=incrDenom,
-        )
-        t2 = time.time()
-        if DEBUG == "TIME":
-            logging.debug(
-                "\tCalculating scores took {} seconds, {} per node with {} nodes".format(
-                    round(t2 - t1),
-                    round((t2 - t1) / len(close_nodes), 1),
-                    len(close_nodes),
-                )
-            )
-
-        sub_nid_branch_score_map = {}
-        for node in self.get_nodes():
-            if node.key in small_radius_scores:
-                sub_nid_branch_score_map[node.key] = small_radius_scores[node.key]
-            else:
-                sub_nid_branch_score_map[node.key] = nid_score_map[node.key]
-
-        if smooth:
-            sub_nid_branch_score_map = self._smooth_scores(sub_nid_branch_score_map)
-
-        return sub_nid_branch_score_map
 
     def get_nid_branch_score_map(
         self, nodes=None, sphere=True, incrDenom=True, consensus=True, key=""
@@ -713,39 +783,6 @@ class Skeleton:
                         costs[i, j, k] = min(current_score, np.max(costs[region]))
         return costs[-1, -1, -1]
 
-    def calculate_strahlers(self):
-        self.arbor.calculate_strahler_indicies()
-
-    def split(self, segment):
-        seg_root = segment[0]
-        seg_tail = segment[-1]
-        upper_nodes = []
-        queue = [self.arbor.root]
-        while len(queue) > 0:
-            current = queue.pop()
-            upper_nodes.append(current.key)
-            if current != seg_root:
-                for child in current.children:
-                    queue.append(child)
-            else:
-                for child in current.children:
-                    if child != segment[1]:
-                        queue.append(child)
-        lower_nodes = []
-        queue = [seg_tail]
-        while len(queue) > 0:
-            current = queue.pop()
-            lower_nodes.append(current.key)
-            for child in current.children:
-                queue.append(child)
-        return (
-            (
-                self.get_minimal_subtree(upper_nodes),
-                self.get_minimal_subtree(lower_nodes),
-            ),
-            (segment[0:2], segment[-1:-3:-1]),
-        )
-
     @staticmethod
     def _get_center_of_mass(data):
         x = np.linspace(-1, 1, data.shape[0])
@@ -772,7 +809,7 @@ class Skeleton:
         """
         Returns the offset to get the most likely position for a missing branch
         allong with a "score" that ranks how likely this position is to
-        be a missing branch. 
+        be a missing branch.
         the "score" factors in confidence of segmentation at that point
         pluss distance to previously seen nodes
         """
@@ -799,7 +836,7 @@ class Skeleton:
         increment_denominator=False,
         sphere=True,
     ) -> np.ndarray:
-        return self.seg.dist_view_weighted_mask(center, sphere=sphere)
+        return self.seg.dist_view_weighted_mask(center)
 
     def get_count_weighted_mask(
         self,
@@ -812,169 +849,112 @@ class Skeleton:
             center, incr_denom=int(increment_denominator), sphere=sphere
         )
 
-    def filter_nodes_by_strahler(self, min_strahler: int, max_strahler: int):
-        self.calculate_strahlers()
-        keep_nodes = filter(
-            lambda node: min_strahler <= node.strahler <= max_strahler, self.get_nodes()
-        )
-        self.input_nodes(keep_nodes)
-
-    def resample_segments(self, delta, steps, sigma_fraction):
-        """
-        resample tree to have evenly spaced nodes. Gaussian smooth the curve
-        and then sample at regular intervals.
-
-        inputs: tree, nodes, regions or coords (nodes makes most sense I think)
-        outputs: tree, nodes, regions or coords (coords makes most sense I think)
-        io can then generate a new skeleton from coords
-        """
-
-        def handle_root(node, seen_roots, new_id, seen_tails):
-            if new_id == 0:
-                new_node = (
-                    new_id,
-                    None,
-                    node.value.center[0],
-                    node.value.center[1],
-                    node.value.center[2],
-                )
-                seen_roots[node.key] = new_node
-                new_id += 1
-                return [new_node], seen_roots, new_id
-
-            elif node.key in seen_roots:
-                return [], seen_roots, new_id
-
-            elif node.key in seen_tails:
-                seen_roots[node.key] = seen_tails[node.key]
-                del seen_tails[node.key]
-                return [], seen_roots, new_id
-
-        # store tail points so that we can use them as roots
-        branch_points = {}
-        # create a list of new node points of form (nid, pid, x, y, z)
-        new_tree_nodes = []
-        # new nodes will need new nids/pids thus we will reassign all nids starting at 0
-        new_node_id = 0
-        # get each straight segment
-        for segment in self.get_segments():
-            # make sure each point in the segment has coordinates
-            assert all(
-                [
-                    node.value is not None and node.value.center is not None
-                    for node in segment
-                ]
-            ), "segment contains some nodes with no center coordinates"
-
-            if new_node_id == 0:
-                root = (0, None, *segment[0].value.center)
-                new_node_id += 1
-                new_tree_nodes.append(root)
-                branch_points[segment[0].key] = root
-
-            # get interpolated nodes. (TAIL included but not Root)
-            new_interpolated_nodes, new_node_id = self.resample_segment(
-                segment,
-                delta,
-                steps,
-                sigma_fraction,
-                new_node_id,
-                branch_points[segment[0].key],
-            )
-            # handle the tail node (new_tail will be empty list if not needed)
-            branch_points[segment[-1].key] = new_interpolated_nodes[-1]
-
-            new_tree_nodes = new_tree_nodes + new_interpolated_nodes
-        new_skeleton = self.clone()
-        new_skeleton.input_nid_pid_x_y_z(new_tree_nodes)
-        return new_skeleton
-
-    def resample_segment(self, nodes, delta, steps, sigma_fraction, new_node_id, root):
-        def get_smoothed(coords, steps=100, sigma_fraction=0.001):
-            x_y_z = list(zip(*coords))
-            t = np.linspace(0, 1, len(coords))
-            t2 = np.linspace(0, 1, steps)
-
-            x_y_z_2 = list(map(lambda x: np.interp(t2, t, x), x_y_z))
-            x_y_z_3 = list(
-                map(
-                    lambda x: gaussian_filter1d(
-                        x, steps * sigma_fraction, mode="nearest"
-                    ),
-                    x_y_z_2,
-                )
-            )
-            return zip(*x_y_z_3)
-
-        def downsample(coords, delta, origin, end):
-            previous = origin
-            for coord in coords + [end]:
-                sqdist = sum((np.array(coord) - np.array(previous)) ** 2)
-                if sqdist < delta ** 2:
-                    continue
-                elif sqdist > (2 * delta) ** 2:
-                    k = (sqdist ** 0.5) // delta
-                    for i in range(0, int(k)):
-                        new_coords = (
-                            ((k - 1) - i) * np.array(previous)
-                            + (i + 1) * np.array(coord)
-                        ) / k
-
-                        if any(np.isnan(new_coords)):
-                            raise Exception("NAN FOUND")
-                        yield list(new_coords)
-                        previous = coord
-                else:
-                    yield coord
-                    previous = coord
-            if not all(abs(np.array(previous) - np.array(end)) < np.array([1e-5] * 3)):
-                yield end
-
-        coords = [node.value.center for node in nodes]
-        smoothed_coords = list(get_smoothed(coords, steps, sigma_fraction))
-        downsampled_coords = list(
-            downsample(smoothed_coords, delta, root[2:], nodes[-1].value.center)
-        )
-        previous_id = root[0]
-        current_id = new_node_id
-        downsampled_nodes = []
-        for coord in downsampled_coords:
-            node = (current_id, previous_id, coord[0], coord[1], coord[2])
-            previous_id = current_id
-            current_id += 1
-            downsampled_nodes.append(node)
-
-        return downsampled_nodes, new_node_id + len(downsampled_nodes)
-
-    def get_regularness(self):
-        """
-        Get mean, std and outliers for distance between nodes.
-        Determine whether skeleton needs to be resampled or not
-        """
-        raise NotImplementedError("not done yet")
-
-    def delete_branch(self, branch_chop: Tuple[int, int]):
-        self.calculate_strahlers()
-        keep_root = self.arbor.nodes[branch_chop[0]]
-        while keep_root.parent_key not in (None, branch_chop[1]):
-            keep_root = keep_root.parent
-
-        keep_nodes = keep_root.traverse(ignore=[branch_chop[1]])
-        new_skeleton = Skeleton()
-        new_skeleton.input_nodes(keep_nodes)
+    # ------------ TEST HELPERS -----------
+    def get_sub_nid_branch_scores(
+        self,
+        full_mask,
+        all_scores,
+        smooth=True,
+        sphere=True,
+        incrDenom=True,
+        mass=True,
+        DEBUG=None,
+    ):
+        nodes = []
+        skipped = 0
+        for node in self.get_nodes():
+            node_bounds = node.value.get_bounds(self.fov_shape)
+            node_bounds = list(map(slice, node_bounds[0], node_bounds[1]))
+            sub_mask = self.segmentation[node_bounds]
+            whole_mask = full_mask[node_bounds]
+            if (
+                not np.array_equal(sub_mask, whole_mask)
+                or tuple(node.value.center) not in all_scores
+            ):
+                nodes.append(node)
+            else:
+                skipped += 1
         logging.debug(
-            "Original skeleton size {} vs chopped skeleton size {}".format(
-                len(self.get_nodes()), len(new_skeleton.get_nodes())
-            )
+            "{}/{} nodes recalculated".format(len(nodes), skipped + len(nodes))
         )
-        return new_skeleton
+        small_radius_scores = self.get_nid_branch_score_map(
+            nodes=nodes, sphere=sphere, mass=mass, incrDenom=incrDenom
+        )
 
-    def get_closest_node(self, location: np.ndarray):
-        closest = None
-        dist = 0
-        for nid, node in self.nodes.items():
-            if closest is None or np.linalg.norm(node.value.center - location) < dist:
-                closest = node
-                dist = np.linalg.norm(node.value.center)
-        return closest
+        sub_nid_branch_score_map = {}
+        for node in self.get_nodes():
+            if node.key in small_radius_scores:
+                sub_nid_branch_score_map[node.key] = small_radius_scores[node.key]
+            else:
+                sub_nid_branch_score_map[node.key] = all_scores[
+                    tuple(node.value.center)
+                ]
 
+        if smooth:
+            sub_nid_branch_score_map = self._smooth_scores(sub_nid_branch_score_map)
+
+        return sub_nid_branch_score_map
+
+    def get_sub_nid_branch_score_map(
+        self,
+        close_nodes,
+        nid_score_map,
+        smooth=True,
+        sphere=True,
+        incrDenom=True,
+        mass=True,
+        DEBUG=None,
+    ):
+        """
+        This function is mostly used for debugging purposes. Given that you know
+        a specific node is a branch point, you can delete a branch, and then find
+        all nodes where the nodes field of view overlaps with any node in the now
+        deleted branch. Since clearly any node whose field of view does not overlap
+        will not have its branch score changed by removing distant nodes. This greatly
+        reduces computation time needed to validate larger datasets.
+        """
+        # Assumes Two halves of the neuron do not come near each other
+        large_radius = [
+            self.nodes[key]
+            for key in self.get_radius_around_group(close_nodes, self.fov_shape)
+        ]
+        t1 = time.time()
+        self.seg.create_octrees_from_nodes(nodes=large_radius)
+        t2 = time.time()
+        if DEBUG == "TIME":
+            logging.debug(
+                "\tCreating Octrees took {} seconds, {} per node with {} nodes".format(
+                    round(t2 - t1),
+                    round((t2 - t1) / len(large_radius), 1),
+                    len(large_radius),
+                )
+            )
+
+        t1 = time.time()
+        small_radius_scores = self.get_nid_branch_score_map(
+            nodes=[self.nodes[key] for key in close_nodes],
+            sphere=sphere,
+            mass=mass,
+            incrDenom=incrDenom,
+        )
+        t2 = time.time()
+        if DEBUG == "TIME":
+            logging.debug(
+                "\tCalculating scores took {} seconds, {} per node with {} nodes".format(
+                    round(t2 - t1),
+                    round((t2 - t1) / len(close_nodes), 1),
+                    len(close_nodes),
+                )
+            )
+
+        sub_nid_branch_score_map = {}
+        for node in self.get_nodes():
+            if node.key in small_radius_scores:
+                sub_nid_branch_score_map[node.key] = small_radius_scores[node.key]
+            else:
+                sub_nid_branch_score_map[node.key] = nid_score_map[node.key]
+
+        if smooth:
+            sub_nid_branch_score_map = self._smooth_scores(sub_nid_branch_score_map)
+
+        return sub_nid_branch_score_map

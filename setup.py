@@ -11,11 +11,17 @@ with open("README.rst") as readme_file:
 with open("HISTORY.rst") as history_file:
     history = history_file.read()
 
-requirements = []
 
-setup_requirements = []
+def parse_requirements(filename):
+    lines = (line.strip() for line in open(filename))
+    return [line for line in lines if line and not line.startswith("#")]
 
-test_requirements = []
+
+requirements = parse_requirements("requirements/dev.txt")
+
+setup_requirements = parse_requirements("requirements/dev.txt")
+
+test_requirements = parse_requirements("requirements/dev.txt")
 
 setup(
     author="William Hunter Patton",

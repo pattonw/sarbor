@@ -1,0 +1,23 @@
+[segmentations_config]
+resolution_phys = [4, 4, 35]
+start_phys = [480800, 203600, 0]
+shape_phys = [42400, 63400, 247205]
+downsample_factor = [4, 4, 1]
+leaf_shape_voxels = [64, 64, 64]
+fov_shape_phys = [3088, 3088, 1715]
+fov_shape_voxels = [193, 193, 49]
+incr_denom = 1.0
+use_sphere = true
+interpolate_distance_nodes = 0
+
+[skeleton_config]
+output_file_base = "27884"
+save_nodes = true
+save_rankings = false
+save_segmentations = false
+save_masks = true
+save_config = true
+use_consensus = true
+resample_delta = 500
+resample_steps = 2000
+resample_sigma = 0.05

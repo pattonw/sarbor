@@ -5,7 +5,7 @@ import pickle
 import logging
 
 from .octrees import OctreeVolume
-
+from .config import SegmentationsConfig
 from .arbors import Node
 
 
@@ -25,7 +25,7 @@ class SegmentationSource:
     For a speed up consider using extra memory to store them together in ram
     """
 
-    def __init__(self, constants: Dict[str, Any] = {}):
+    def __init__(self, config: SegmentationsConfig, constants: Dict[str, Any] = {}):
         self._constants = constants
         self._sphere = None
 
@@ -34,95 +34,64 @@ class SegmentationSource:
         self._segmentation_counts = None
         self._distances = None
 
+        # Config
+        self._config = config
+
     @property
     def resolution_phys(self) -> np.ndarray:
-        """
-        nanometers per voxel in X,Y,Z order in original image space
-        default: 4, 4, 40
-        """
-        return self._constants.get("original_resolution", np.array([4, 4, 40]))
+        return self._config.resolution_phys
 
     @property
     def start_phys(self) -> np.ndarray:
-        """
-        Coordinates in X,Y,Z order with units in nano-meters
-        default: 403560, 121800, 158000
-        """
-        return self._constants.get("start_phys", np.array([403560, 121800, 158000]))
+        return self._config.start_phys
 
     @property
     def shape_phys(self) -> np.ndarray:
-        """
-        Shape in X,Y,Z order with units in nano-meters
-        default: 64000, 52000, 76000
-        """
-        return self._constants.get("shape_phys", np.array([64000, 52000, 76000]))
+        return self._config("shape_phys")
 
     @property
     def end_phys(self) -> np.ndarray:
-        """
-        Coordinates in X,Y,Z order with units in nano-meters
-        default: start + shape
-        """
-        return self.start_phys + self.shape_phys
+        return self._config.end_phys
 
     @property
     def voxel_resolution(self) -> np.ndarray:
-        """
-        Resolution for each voxel in the segmentation in X,Y,Z order
-        """
-        return self.resolution_phys * self.downsample_factor
+        return self._config.voxel_resolution
 
     @property
     def start_voxel(self) -> np.ndarray:
-        return self.start_phys // self.voxel_resolution
+        return self._config.start_voxel
 
     @property
     def shape_voxel(self) -> np.ndarray:
-        return (self.shape_phys + self.voxel_resolution - 1) // self.voxel_resolution
+        return self._config.shape_voxel
 
     @property
     def end_voxel(self) -> np.ndarray:
-        return self.start_voxel + self.shape_voxel
+        return self._config.end_voxel
 
     @property
     def seg_phys_bounds(self) -> Tuple[np.ndarray, np.ndarray]:
-        return (self.start_phys, self.end_phys)
+        return self._config.seg_phys_bounds
 
     @property
     def seg_voxel_bounds(self) -> Tuple[np.ndarray, np.ndarray]:
-        return (self.start_voxel, self.end_voxel)
+        return self._config.seg_voxel_bounds
 
     @property
     def downsample_factor(self) -> np.ndarray:
-        """
-        Downsample for each axis in X,Y,Z order
-        """
-        return self._constants.get("downsample_scale", np.array([10, 10, 1]))
+        return self._config.downsample_factor
 
     @property
     def fov_shape_voxels(self) -> np.ndarray:
-        """
-        Shape of a field of view around each node during segmentation in X,Y,Z order
-        """
-        shape = self._constants.get("fov_voxel_shape", np.array([31, 31, 31]))
-        if any(shape % 2 == np.array([0, 0, 0])):
-            raise ValueError(
-                "Even fov_shapes are not supported yet since ",
-                "there would be no 'middle' voxel for the sample point",
-            )
-        return shape
-
-    @property
-    def leaf_shape_voxels(self) -> np.ndarray:
-        """
-        leaf shape for the octrees in voxels
-        """
-        return self._constants.get("leaf_voxel_shape", np.array([128, 128, 128]))
+        return self._config.fov_shape_voxels
 
     @property
     def fov_shape_phys(self) -> np.ndarray:
-        return self.fov_shape_voxels * self.voxel_resolution
+        return self._config.fov_shape_phys
+
+    @property
+    def leaf_shape_voxels(self) -> np.ndarray:
+        return self._config.leaf_shape_voxels
 
     @property
     def sphere(self) -> np.ndarray:
@@ -241,14 +210,9 @@ class SegmentationSource:
         ).reshape(1, 1, dimensions[2])
         return (x + y + z) ** (0.5) / np.sum((half_dim * resolution) ** 2) ** (0.5)
 
-    def create_octrees_from_nodes(
-        self,
-        nodes: Iterable[Node],
-        sphere: bool = False,
-        interpolate_dist_nodes: int = 0,
-    ):
+    def create_octrees_from_nodes(self, nodes: Iterable[Node]):
         dist_block = self._dist_block(self.fov_shape_voxels, self.voxel_resolution)
-        if sphere:
+        if self._config.use_sphere:
             dist_block[np.logical_not(self.sphere)] = float("inf")
 
         for node in nodes:
@@ -259,13 +223,18 @@ class SegmentationSource:
             self.distances[node_bounds] = np.minimum(
                 self.distances[node_bounds], dist_block
             )
-            if interpolate_dist_nodes > 0 and node.children is not None:
+            if (
+                self._config.interpolate_distance_nodes > 0
+                and node.children is not None
+            ):
                 for neighbor in node.children:
-                    for k in range(1, interpolate_dist_nodes + 1):
+                    for k in range(1, self._config.interpolate_distance_nodes + 1):
                         linear_step = neighbor.value.center * k / (
-                            interpolate_dist_nodes + 1
-                        ) + node.value.center * (interpolate_dist_nodes - k) / (
-                            interpolate_dist_nodes + 1
+                            self._config.interpolate_distance_nodes + 1
+                        ) + node.value.center * (
+                            self._config.interpolate_distance_nodes - k
+                        ) / (
+                            self._config.interpolate_distance_nodes + 1
                         )
                         mid_bounds = self.transform_bounds(self.get_roi(linear_step))
                         self.distances[mid_bounds] = np.minimum(
@@ -303,7 +272,7 @@ class SegmentationSource:
     def extract_data(self):
         return self._constants
 
-    def transform_bounds(self, bounds: Tuple[np.ndarray, np.ndarray]) -> List[slice]:
+    def transform_bounds(self, bounds: Tuple[np.ndarray, np.ndarray]) -> Tuple[slice]:
         """
         Takes bounds in tuple format ((a,b,c), (A,B,C)) and converts them into slices
         [a:A, b:B, c:C] in voxel space
@@ -317,7 +286,7 @@ class SegmentationSource:
         assert all(
             (bounds[1] - bounds[0]) % self.voxel_resolution == 0
         ), "Queried shape must be a multiple of the voxel shape"
-        return list(
+        return tuple(
             map(
                 slice,
                 (bounds[0] // self.voxel_resolution).astype(int),
@@ -339,11 +308,11 @@ class SegmentationSource:
         )
         return start, end
 
-    def boolean_mask(self, center: np.ndarray, sphere=False) -> np.ndarray:
+    def boolean_mask(self, center: np.ndarray) -> np.ndarray:
         bounds = self.transform_bounds(self.get_roi(center))
         mask = self.segmentation_counts[bounds] > 0
-        if sphere:
-            mask[np.logical_not(sphere)] = False
+        if self._config.use_sphere:
+            mask[np.logical_not(self.sphere)] = False
         return mask
 
     def _boolean_mask(self, bounds: List[slice]) -> np.ndarray:
@@ -354,13 +323,11 @@ class SegmentationSource:
             raise ValueError("boolean_mask contains INF!")
         return mask
 
-    def dist_weighted_boolean_mask(
-        self, center: np.ndarray, sphere=False
-    ) -> np.ndarray:
+    def dist_weighted_boolean_mask(self, center: np.ndarray) -> np.ndarray:
         bounds = self.transform_bounds(self.get_roi(center))
         mask = self._dist_weighted_boolean_mask(bounds)
-        if sphere:
-            mask[np.logical_not(sphere)] = 0
+        if self._config.use_sphere:
+            mask[np.logical_not(self.sphere)] = 0
         return mask
 
     def _dist_weighted_boolean_mask(self, bounds: List[slice]):
@@ -371,20 +338,16 @@ class SegmentationSource:
             raise ValueError("dist_weighted_boolean_mask contains INF!")
         return mask
 
-    def view_weighted_mask(
-        self, center: np.ndarray, incr_denom: int = 1, sphere=False
-    ) -> np.ndarray:
+    def view_weighted_mask(self, center: np.ndarray) -> np.ndarray:
         bounds = self.transform_bounds(self.get_roi(center))
-        mask = self._view_weighted_mask(bounds, incr_denom=incr_denom)
-        if sphere:
-            mask[np.logical_not(sphere)] = 0
+        mask = self._view_weighted_mask(bounds, incr_denom=self._config.incr_denom)
+        if self._config.use_sphere:
+            mask[np.logical_not(self.sphere)] = 0
         return mask
 
-    def _view_weighted_mask(
-        self, bounds: List[slice], incr_denom: int = 1
-    ) -> np.ndarray:
+    def _view_weighted_mask(self, bounds: List[slice]) -> np.ndarray:
         mask = self.segmentation_counts[bounds] / (
-            self.segmentation_views[bounds] + incr_denom
+            self.segmentation_views[bounds] + self._config.incr_denom
         )
         assert mask.max() <= 1, "Cannot have confidence above 100%"
         if np.isnan(mask).any():
@@ -393,15 +356,15 @@ class SegmentationSource:
             raise ValueError("view_weighted_mask contains INF!")
         return mask
 
-    def dist_view_weighted_mask(self, center: np.ndarray, sphere=False) -> np.ndarray:
+    def dist_view_weighted_mask(self, center: np.ndarray) -> np.ndarray:
         bounds = self.transform_bounds(self.get_roi(center))
         mask = self._dist_view_weighted_mask(bounds)
-        if sphere:
-            mask[np.logical_not(sphere)] = 0
+        if self._config.use_sphere:
+            mask[np.logical_not(self.sphere)] = 0
         return mask
 
     def _dist_view_weighted_mask(self, bounds: List[slice]) -> np.ndarray:
-        mask = self._view_weighted_mask(bounds, 1) * self._distance_mask(bounds)
+        mask = self._view_weighted_mask(bounds) * self._distance_mask(bounds)
         if np.isnan(mask).any():
             raise ValueError("dist_view_weighted_mask contains NAN!")
         if np.isinf(mask).any():
@@ -417,4 +380,3 @@ class SegmentationSource:
         )
         distances[np.isinf(distances)] = 0
         return distances
-
