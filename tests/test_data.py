@@ -14,14 +14,10 @@ from sarbor.config import Config
 import sarbor
 
 
-class TestSarborToy(unittest.TestCase):
-    """Tests for `sarbor` package."""
+class TestSarborReal(unittest.TestCase):
+    """Tests for `sarbor` package on a real skeleton."""
 
     def setUp(self):
-        """
-        data gathered from running diluvian on skel id 424271
-        """
-
         def get_skeleton_from_json(f):
             with f.open("r") as of:
                 dataset = json.load(of)
@@ -39,27 +35,37 @@ class TestSarborToy(unittest.TestCase):
     def test_resample(self):
         sampled_skel = self.skel.resample_segments()
         # Test leaves/branches/root didn't move
-        og_interesting = sorted(
-            [
-                node.value.center
-                for node in self.skel.get_interesting_nodes(
-                    leaves=True, branches=True, root=True
-                )
-            ],
-            key=lambda x: tuple(x),
-        )
-        sampled_interesting = sorted(
-            [
-                node.value.center
-                for node in sampled_skel.get_interesting_nodes(
-                    leaves=True, branches=True, root=True
-                )
-            ],
-            key=lambda x: tuple(x),
-        )
+        og_interesting = [
+            node
+            for node in self.skel.get_interesting_nodes(
+                leaves=True, branches=True, root=True
+            )
+        ]
+        sampled_interesting = [
+            node
+            for node in sampled_skel.get_interesting_nodes(
+                leaves=True, branches=True, root=True
+            )
+        ]
+        self.assertEqual(len(og_interesting), len(sampled_interesting))
         self.assertTrue(
             all(
-                [np.allclose(a, b) for a, b in zip(og_interesting, sampled_interesting)]
+                [
+                    np.allclose(a.value.center, b.value.center)
+                    for a, b in zip(og_interesting, sampled_interesting)
+                ]
+            )
+        )
+
+        # Test strahler values for leaves/branches/root are equal
+        sampled_skel.calculate_strahlers()
+        self.skel.calculate_strahlers()
+        self.assertTrue(
+            all(
+                [
+                    a.strahler == b.strahler
+                    for a, b in zip(og_interesting, sampled_interesting)
+                ]
             )
         )
 
@@ -73,20 +79,13 @@ class TestSarborToy(unittest.TestCase):
             and (len(node.children) == 1 or len(node.parent.children) == 1)
         ]
         assert (
-            np.max(distances) < sampled_skel.config.resample_delta * 1.6
+            np.max(distances) < sampled_skel.config.resample_delta * 1.5
         ), "max dist is {} but should be less than {}".format(
-            np.max(distances), sampled_skel.config.resample_delta * 1.6
+            np.max(distances), sampled_skel.config.resample_delta * 1.5
         )
         assert (
             np.min(distances) > sampled_skel.config.resample_delta * 0.5
         ), "min dist is {} but should be greater than {}".format(
             np.min(distances), sampled_skel.config.resample_delta * 0.5
-        )
-        assert (
-            np.mean(distances) > 250
-        ), "mean dist is {} but should be between {} and {}".format(
-            np.mean(distances),
-            sampled_skel.config.resample_delta * 0.5,
-            sampled_skel.config.resample_delta * 1.5,
         )
 
