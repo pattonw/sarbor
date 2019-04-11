@@ -424,14 +424,9 @@ class Skeleton:
         new_node_id = 0
         # get each straight segment
         for segment in self.get_segments():
-            # make sure each point in the segment has coordinates
-            assert all(
-                [
-                    node.value is not None and node.value.center is not None
-                    for node in segment
-                ]
-            ), "segment contains some nodes with no center coordinates"
 
+            # handle root case. All other segment "roots" will
+            # be handled as tails of previous segments
             if new_node_id == 0:
                 root = (0, None, *segment[0].value.center)
                 new_node_id += 1
@@ -444,10 +439,13 @@ class Skeleton:
                 segment, new_node_id, root_key
             )
 
-            # save tail node as potential future root node
-            branch_points[segment[-1].key] = new_interpolated_nodes[-1]
+            # save tail node for future referece if it is a branch
+            if len(segment[-1].children) > 1:
+                branch_points[segment[-1].key] = new_interpolated_nodes[-1]
 
             new_tree_nodes = new_tree_nodes + new_interpolated_nodes
+
+        # create a new tree with the same config and input the new nodes
         new_skeleton = self.clone()
         new_skeleton.input_nid_pid_x_y_z(new_tree_nodes)
         return new_skeleton
@@ -471,9 +469,8 @@ class Skeleton:
                 )
             )
 
-            # gaussian smooth moves start points
-            # linearly interpolate between original start and gaussian smoothed start
-            # this triples the length of the gaussian smoothed curve
+            # gaussian smooth moves end points, thus we need to
+            # linearly interpolate between original ends and gaussian smoothed ends
             t = np.linspace(0, 1, 2)
             t2 = np.linspace(0, 1, steps)
             start = [[x_y_z[i][0], x_y_z_3[i][0]] for i in range(3)]
@@ -489,14 +486,18 @@ class Skeleton:
         def downsample(coords, delta, origin, end):
             previous = coords[0]
             dist_to_end = np.linalg.norm(np.array(previous) - np.array(coords[-1]))
+
             for coord in coords[1:]:
                 if dist_to_end < delta * 1.5:
                     break
+
                 dist = np.linalg.norm(np.array(coord) - np.array(previous))
                 if dist < delta:
                     continue
                 elif dist > 2 * delta:
-                    raise ValueError("delta is too small or you have too few steps")
+                    raise ValueError(
+                        "your resampling has too few steps to support a delta this small!"
+                    )
                 else:
                     yield coord
                     previous = coord
@@ -505,6 +506,7 @@ class Skeleton:
                     )
 
             if not np.allclose(previous, coords[-1]):
+                # yield end point if not already done
                 yield coords[-1]
 
         coords = [node.value.center for node in nodes]
@@ -523,6 +525,8 @@ class Skeleton:
                 nodes[-1].value.center,
             )
         )
+
+        # return new downsampled nodes
         previous_id = root[0]
         current_id = new_node_id
         downsampled_nodes = []
