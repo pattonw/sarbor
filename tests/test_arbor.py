@@ -97,6 +97,19 @@ class TestSarborToy(unittest.TestCase):
         self.assertEqual(chop.nodes[5].strahler, 1)
         self.assertEqual(chop.nodes[10].strahler, 1)
 
+    def test_get_segments(self):
+        """
+        breadth first segment iteration
+        """
+        segment_iter = self.skeleton.get_segments()
+        self.assertEqual([node.key for node in next(segment_iter)], [0, 1, 2])
+        self.assertEqual([node.key for node in next(segment_iter)], [2, 3, 4])
+        self.assertEqual([node.key for node in next(segment_iter)], [2, 6, 7])
+        self.assertEqual([node.key for node in next(segment_iter)], [4, 5])
+        self.assertEqual([node.key for node in next(segment_iter)], [4, 10])
+        self.assertEqual([node.key for node in next(segment_iter)], [7, 8])
+        self.assertEqual([node.key for node in next(segment_iter)], [7, 9])
+
     @unittest.expectedFailure
     def test_merge_trees(self):
         raise NotImplementedError

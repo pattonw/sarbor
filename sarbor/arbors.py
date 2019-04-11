@@ -241,25 +241,22 @@ class Arbor:
                 return self.breadth_first_traversal()
 
     def traverse_segments(self):
+        """
+        Traverses segments in a breadth first style to avoid recursion
+        """
         queue = deque([self.root])
 
         while len(queue) > 0:
             root = queue.popleft()
-            for child in root.children:
+            for child in sorted(root.children, key=lambda x: x.key):
                 segment = [root]
                 current = child
-                while True:
+                while len(current.children) == 1:
                     segment.append(current)
-                    next_nodes = current.children
-                    if len(next_nodes) == 0:
-                        break
-                    elif len(next_nodes) > 1:
-                        queue.append(current)
-                        break
-                    else:
-                        segment.append(next_nodes[0])
-                        current = next_nodes[0]
-
+                    current = current.children[0]
+                segment.append(current)
+                if len(current.children) > 1:
+                    queue.append(current)
                 yield segment
 
     def get_minimal_subtree(self, ids):

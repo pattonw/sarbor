@@ -420,27 +420,6 @@ class Skeleton:
         io can then generate a new skeleton from coords
         """
 
-        def handle_root(node, seen_roots, new_id, seen_tails):
-            if new_id == 0:
-                new_node = (
-                    new_id,
-                    None,
-                    node.value.center[0],
-                    node.value.center[1],
-                    node.value.center[2],
-                )
-                seen_roots[node.key] = new_node
-                new_id += 1
-                return [new_node], seen_roots, new_id
-
-            elif node.key in seen_roots:
-                return [], seen_roots, new_id
-
-            elif node.key in seen_tails:
-                seen_roots[node.key] = seen_tails[node.key]
-                del seen_tails[node.key]
-                return [], seen_roots, new_id
-
         # store tail points so that we can use them as roots
         branch_points = {}
         # create a list of new node points of form (nid, pid, x, y, z)
@@ -463,11 +442,13 @@ class Skeleton:
                 new_tree_nodes.append(root)
                 branch_points[segment[0].key] = root
 
-            # get interpolated nodes. (TAIL included but not Root)
+            # get interpolated nodes. includes tail but not root
+            root_key = branch_points[segment[0].key]
             new_interpolated_nodes, new_node_id = self.resample_segment(
-                segment, new_node_id, branch_points[segment[0].key]
+                segment, new_node_id, root_key
             )
-            # handle the tail node (new_tail will be empty list if not needed)
+
+            # save tail node as potential future root node
             branch_points[segment[-1].key] = new_interpolated_nodes[-1]
 
             new_tree_nodes = new_tree_nodes + new_interpolated_nodes
@@ -481,7 +462,10 @@ class Skeleton:
             t = np.linspace(0, 1, len(coords))
             t2 = np.linspace(0, 1, steps)
 
+            # linearly interpolate points through each axis independently
             x_y_z_2 = list(map(lambda x: np.interp(t2, t, x), x_y_z))
+
+            # gaussian smooth points allong each axis
             x_y_z_3 = list(
                 map(
                     lambda x: gaussian_filter1d(
@@ -490,36 +474,51 @@ class Skeleton:
                     x_y_z_2,
                 )
             )
+
+            # gaussian smooth moves start points
+            # linearly interpolate between original start and gaussian smoothed start
+            # this triples the length of the gaussian smoothed curve
+            t = np.linspace(0, 1, 2)
+            t2 = np.linspace(0, 1, steps)
+            start = [[x_y_z[i][0], x_y_z_3[i][0]] for i in range(3)]
+            end = [[x_y_z_3[i][-1], x_y_z[i][-1]] for i in range(3)]
+            start = list(map(lambda x: np.interp(t2, t, x), start))
+            end = list(map(lambda x: np.interp(t2, t, x), end))
+            x_y_z_3 = list(
+                zip(*(list(zip(*start)) + list(zip(*x_y_z_3)) + list(zip(*end))))
+            )
+
             return zip(*x_y_z_3)
 
         def downsample(coords, delta, origin, end):
-            previous = origin
-            for coord in coords + [end]:
-                sqdist = sum((np.array(coord) - np.array(previous)) ** 2)
-                if sqdist < delta ** 2:
+            previous = coords[0]
+            dist_to_end = np.linalg.norm(np.array(previous) - np.array(coords[-1]))
+            for coord in coords[1:]:
+                if dist_to_end < delta * 1.5:
+                    break
+                dist = np.linalg.norm(np.array(coord) - np.array(previous))
+                if dist < delta:
                     continue
-                elif sqdist > (2 * delta) ** 2:
-                    k = (sqdist ** 0.5) // delta
-                    for i in range(0, int(k)):
-                        new_coords = (
-                            ((k - 1) - i) * np.array(previous)
-                            + (i + 1) * np.array(coord)
-                        ) / k
-
-                        if any(np.isnan(new_coords)):
-                            raise Exception("NAN FOUND")
-                        yield list(new_coords)
-                        previous = coord
+                elif dist > 2 * delta:
+                    raise ValueError("delta is too small or you have too few steps")
                 else:
                     yield coord
                     previous = coord
-            if not all(abs(np.array(previous) - np.array(end)) < np.array([1e-5] * 3)):
-                yield end
+                    dist_to_end = np.linalg.norm(
+                        np.array(previous) - np.array(coords[-1])
+                    )
+
+            if not np.allclose(previous, coords[-1]):
+                yield coords[-1]
 
         coords = [node.value.center for node in nodes]
+
+        # contains both end points
         smoothed_coords = list(
             get_smoothed(coords, self.config.resample_steps, self.config.resample_sigma)
         )
+
+        # does not contain root
         downsampled_coords = list(
             downsample(
                 smoothed_coords,
