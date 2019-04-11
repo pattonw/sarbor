@@ -23,6 +23,9 @@ class Node:
             center=kwargs.get("center", None), mask=kwargs.get("mask", None)
         )
 
+    def __str__(self):
+        return "nid: {}, {}".format(self.key, self.value)
+
     @property
     def key(self):
         """
@@ -177,7 +180,7 @@ class Node:
         while len(queue) > 0:
             current = queue.pop()
             yield current
-            for child in current.children:
+            for child in sorted(current.children, key=lambda x: x.key, reverse=True):
                 if child.key not in ignore:
                     queue.append(child)
 
@@ -222,7 +225,7 @@ class Arbor:
             key_map[node.key] = node
         return key_map
 
-    def traverse(self, fifo=False):
+    def traverse(self, fifo=True):
         """
         Iterate over the elements of the tree
         traversal options:
@@ -310,7 +313,7 @@ class Arbor:
         while len(queue) > 0:
             current = queue.pop()
             yield current
-            for child in current.children:
+            for child in sorted(current.children, key=lambda x: x.key, reverse=True):
                 if ignore is None or child.key not in ignore:
                     queue.appendleft(child)
 
@@ -320,7 +323,7 @@ class Arbor:
         while len(queue) > 0:
             current = queue.pop()
             yield current
-            for child in current.children:
+            for child in sorted(current.children, key=lambda x: x.key, reverse=True):
                 if ignore is None or child.key not in ignore:
                     queue.append(child)
 
@@ -343,6 +346,9 @@ class NodeData:
 
     def __init__(self, **kwargs):
         self._data = kwargs
+
+    def __str__(self):
+        return "center: {}".format(self.center)
 
     @property
     def data(self) -> Dict[str, Any]:
