@@ -5,8 +5,6 @@ This module contains boilerplate configuration objects for storing and loading
 configuration state.
 """
 
-import os
-
 import numpy as np
 import pytoml as toml
 
@@ -246,4 +244,3 @@ class Config(object):
     def to_toml(self, filename):
         with open(filename, "w") as tomlfile:
             tomlfile.write(str(self))
-

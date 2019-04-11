@@ -380,4 +380,3 @@ class SegmentationSource:
         )
         distances[np.isinf(distances)] = 0
         return distances
-

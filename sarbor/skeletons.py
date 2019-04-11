@@ -809,7 +809,7 @@ class Skeleton:
         """
         Returns the offset to get the most likely position for a missing branch
         allong with a "score" that ranks how likely this position is to
-        be a missing branch. 
+        be a missing branch.
         the "score" factors in confidence of segmentation at that point
         pluss distance to previously seen nodes
         """

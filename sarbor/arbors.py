@@ -535,4 +535,3 @@ class SpatialArbor(Arbor):
             if node.value.mask is not None
         }
         return nodes, masks
-
