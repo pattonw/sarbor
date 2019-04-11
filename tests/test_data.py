@@ -11,8 +11,6 @@ import numpy as np
 from sarbor import Skeleton
 from sarbor.config import Config
 
-import sarbor
-
 
 class TestSarborReal(unittest.TestCase):
     """Tests for `sarbor` package on a real skeleton."""
