@@ -204,10 +204,10 @@ class Config(object):
         else:
             settings = {}
 
-        self.segmentations_config = SegmentationsConfig(
-            settings.get("segmentations_config", {})
+        self.segmentations = SegmentationsConfig(
+            settings.get("segmentations", {})
         )
-        self.skeleton_config = SkeletonConfig(settings.get("skeleton_config", {}))
+        self.skeleton = SkeletonConfig(settings.get("skeleton", {}))
 
     def __str__(self):
         sanitized = {}
