@@ -172,7 +172,9 @@ class SkeletonConfig(BaseConfig):
     """
 
     def __init__(self, settings):
+        self.skeleton_csv = str(settings.get("skeleton_csv"))
         self.output_file_base = str(settings.get("output_file_base"))
+
         self.save_nodes = bool(settings.get("save_nodes", True))
         self.save_rankings = bool(settings.get("save_rankings", True))
         self.save_segmentations = bool(settings.get("save_segmentations", True))
@@ -204,9 +206,7 @@ class Config(object):
         else:
             settings = {}
 
-        self.segmentations = SegmentationsConfig(
-            settings.get("segmentations", {})
-        )
+        self.segmentations = SegmentationsConfig(settings.get("segmentations", {}))
         self.skeleton = SkeletonConfig(settings.get("skeleton", {}))
 
     def __str__(self):

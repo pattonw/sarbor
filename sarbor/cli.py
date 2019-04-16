@@ -2,37 +2,59 @@ import click
 from .config import Config
 import logging
 
+pass_config = click.make_pass_decorator(Config, ensure=True)
 
-@click.command()
+
+@click.group()
 @click.option(
-    "--segmentation_source",
-    default=None,
-    type=str,
-    help="Where to obtain segmentations. Currently supported sources are diluvian and watershed",
-    required=True,
-)
-@click.option(
-    "--skeleton_csv",
+    "--skeleton-csv",
     default=None,
     type=click.Path(),
     help="A csv file with data in (nid,pid,x,y,z) format",
     required=True,
 )
 @click.option(
-    "--sarbor_config",
+    "--sarbor-config",
     default=None,
     type=click.Path(),
     help="Configuration file for sarbor",
     required=True,
 )
 @click.option(
-    "--model_weights_file",
+    "--output-file",
+    default="-",
+    type=click.Path(),
+    help="output file base. Directory in which to store your data.",
+)
+@pass_config
+def cli(
+    segmentation_source: str,
+    skeleton_csv: click.Path,
+    sarbor_config: click.Path,
+    output_file: click.Path,
+):
+    config = Config.from_toml(sarbor_config)
+    config.skeleton.output_file_base = output_file
+    config.skeleton.skeleton_csv = skeleton_csv
+
+
+@cli.command()
+@pass_config
+def watershed(config):
+    from sarbor import query_watershed
+
+    query_watershed(config)
+
+
+@cli.command()
+@click.option(
+    "--model-weights-file",
     default=None,
     type=click.Path(),
     help="Model weights file for NN based segmentation sources (i.e. Diluvian)",
 )
 @click.option(
-    "--model_training_config",
+    "--model-training-config",
     default=None,
     type=click.Path(),
     help=(
@@ -41,7 +63,7 @@ import logging
     ),
 )
 @click.option(
-    "--model_job_config",
+    "--model-job-config",
     default=None,
     type=click.Path(),
     help=(
@@ -50,26 +72,11 @@ import logging
     ),
 )
 @click.option(
-    "--volume_file",
+    "--volume-file",
     default=None,
     type=click.Path(),
     help="Volume config file for the raw image data for NN based approaches (i.e. Diluvian)",
 )
-@click.option(
-    "--output_file",
-    default="-",
-    type=click.Path(),
-    help="output file base. Directory in which to store your data.",
-)
-def cli(
-    segmentation_source,
-    skeleton_csv: click.Path,
-    sarbor_config: click.Path,
-    model_weights_file: click.Path,
-    model_training_config: click.Path,
-    model_job_config: click.Path,
-    volume_file: click.Path,
-    output_file: click.Path,
-):
-    config = Config()
-    logging.info(config)
+@pass_config
+def diluvian(config):
+    logging.info("diluvian")
