@@ -22,7 +22,7 @@ class Skeleton:
             config = Config()
         # Data sources
         self._arbor = SpatialArbor()
-        self._seg = SegmentationSource(config.segmentations_config)
+        self._seg = SegmentationSource(config.segmentations)
         self._config = config
 
         # floodfilling specific properties
@@ -36,7 +36,7 @@ class Skeleton:
     # -----PROPERTIES-----
     @property
     def config(self) -> SkeletonConfig:
-        return self._config.skeleton_config
+        return self._config.skeleton
 
     @property
     def nodes(self) -> Dict[int, Node]:
