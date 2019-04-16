@@ -49,4 +49,8 @@ setup(
     url="https://github.com/pattonw/sarbor",
     version="0.1.0",
     zip_safe=False,
+    entry_points="""
+        [console_scripts]
+        sarbor-error-detector=sarbor.cli:cli
+    """,
 )
