@@ -19,10 +19,6 @@ class SegmentationSource:
         How many times each voxel was contained in a nodes field of view during segmentation
     3) distances (OctreeVolume[float32]):
         Minimum distance from each voxel to a sample point during segmentation
-
-    segmentation_counts and views are stored seperately since storing their quotient as a float
-    would be a lot more memory intense and calculating values on the fly is trivial.
-    For a speed up consider using extra memory to store them together in ram
     """
 
     def __init__(self, config: SegmentationsConfig, constants: Dict[str, Any] = {}):

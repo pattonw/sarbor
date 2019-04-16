@@ -1,8 +1,9 @@
 import click
 from .config import Config
+import logging
 
 
-@click.group()
+@click.command()
 @click.option(
     "--segmentation_source",
     default=None,
@@ -64,13 +65,11 @@ def cli(
     segmentation_source,
     skeleton_csv: click.Path,
     sarbor_config: click.Path,
-    skeleton_config: click.Path,
     model_weights_file: click.Path,
     model_training_config: click.Path,
     model_job_config: click.Path,
     volume_file: click.Path,
     output_file: click.Path,
 ):
-    config.skeleton.from_toml(sarbor_config)
-    config.skeleton.path = skeleton_csv
-
+    config = Config()
+    logging.info(config)
