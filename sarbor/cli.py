@@ -26,22 +26,25 @@ pass_config = click.make_pass_decorator(Config, ensure=True)
     type=click.Path(),
     help="output file base. Directory in which to store your data.",
 )
+@click.option("--log-level", default=logging.INFO, type=int, help="Log level")
 @pass_config
 def cli(
-    segmentation_source: str,
+    config: Config,
     skeleton_csv: click.Path,
     sarbor_config: click.Path,
     output_file: click.Path,
+    log_level: int,
 ):
-    config = Config.from_toml(sarbor_config)
+    logging.basicConfig(level=log_level)
+    config.from_toml(sarbor_config)
     config.skeleton.output_file_base = output_file
-    config.skeleton.skeleton_csv = skeleton_csv
+    config.skeleton.csv = skeleton_csv
 
 
 @cli.command()
 @pass_config
 def watershed(config):
-    from sarbor import query_watershed
+    from .sarbor import query_watershed
 
     query_watershed(config)
 
@@ -79,4 +82,6 @@ def watershed(config):
 )
 @pass_config
 def diluvian(config):
-    logging.info("diluvian")
+    from .sarbor import query_diluvian
+
+    query_diluvian(config)
