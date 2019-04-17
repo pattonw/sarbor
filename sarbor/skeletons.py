@@ -170,6 +170,23 @@ class Skeleton:
         """
         node = self.nodes[nid]
 
+        if not all(self.seg.downsample_factor == np.ones([3])):
+            mask = ((
+                (255 * mask)
+                .reshape(
+                    [
+                        mask.shape[0] // self.seg.downsample_factor[0],
+                        self.seg.downsample_factor[0],
+                        mask.shape[1] // self.seg.downsample_factor[1],
+                        self.seg.downsample_factor[1],
+                        mask.shape[2] // self.seg.downsample_factor[2],
+                        self.seg.downsample_factor[2],
+                    ]
+                )
+                .mean(5)
+                .mean(3)
+                .mean(1)
+            ) > 127).astype(np.uint8)
         node.value.mask = mask
         self.filled[nid] = True
 
