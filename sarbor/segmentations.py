@@ -273,6 +273,7 @@ class SegmentationSource:
         Takes bounds in tuple format ((a,b,c), (A,B,C)) and converts them into slices
         [a:A, b:B, c:C] in voxel space
         """
+        # TODO: move assertions into a proper unittest
         assert all(
             bounds[0] < bounds[1]
         ), "Resulting shape must be positive on all axes"
@@ -297,6 +298,7 @@ class SegmentationSource:
         block_offset = (fov_shape // voxel_shape) // 2
         start = center_block - block_offset * voxel_shape
         end = center_block + (block_offset + 1) * voxel_shape
+        # TODO: put this is a test file
         assert all(
             end - start == fov_shape
         ), "ROI does not cover the expected area: {} vs {}".format(

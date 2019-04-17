@@ -172,7 +172,7 @@ class SkeletonConfig(BaseConfig):
     """
 
     def __init__(self, settings):
-        self.skeleton_csv = str(settings.get("skeleton_csv"))
+        self.csv = str(settings.get("csv"))
         self.output_file_base = str(settings.get("output_file_base"))
 
         self.save_nodes = bool(settings.get("save_nodes", True))
@@ -182,10 +182,32 @@ class SkeletonConfig(BaseConfig):
         self.save_config = bool(settings.get("save_config", True))
         self.use_consensus = bool(settings.get("use_consensus", False))
 
+        self.resample = bool(settings.get("resample", True))
         self.resample_delta = int(settings.get("resample_delta", 500))
         self.resample_steps = int(settings.get("resample_steps", 2000))
         self.resample_sigma = float(settings.get("resample_sigma", 0.05))
 
+        self.strahler_filter = bool(settings.get("strahler_filter", True))
+        self.min_strahler = int(settings.get("min_strahler", 0))
+        self.max_strahler = int(settings.get("max_strahler", 10000))
+
+    @property
+    def nodes(self):
+        import csv
+
+        coords = []
+        ids = []
+        with open(self.csv, newline="") as csvfile:
+            reader = csv.reader(csvfile, delimiter=",", quotechar="|")
+            for row in reader:
+                coords.append([int(float(x)) for x in row[2:]])
+                if row[1].strip() == "null" or row[1].strip() == "none":
+                    ids.append([int(float(row[0])), None])
+                elif row[0] == row[1]:
+                    ids.append([int(float(row[0])), None])
+                else:
+                    ids.append([int(float(x)) for x in row[:2]])
+        return [ids[i] + coords[i] for i in range(len(ids))]
 
 class Config(object):
     """A complete collection of configuration objects.
