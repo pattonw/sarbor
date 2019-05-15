@@ -77,7 +77,7 @@ class SegmentationsConfig(BaseConfig):
         self.incr_denom = float(settings.get("incr_denom", 1))
         self.use_sphere = bool(settings.get("use_sphere", True))
         self.interpolate_distance_nodes = int(
-            settings.get("interpolate_distance_nodes", 0)
+            settings.get("interpolate_distance_nodes", 3)
         )
 
     @property
