@@ -67,6 +67,8 @@ class JanSegmentationSource:
                 pass
             except OperationFailure as e:
                 logging.warn(e)
+            except AssertionError as e:
+                results_queue.put((node_id, str(e)))
             # except Exception as e:
             #    logging.warn("Unknown Error: {}".format(e))
             #    pass
@@ -143,8 +145,8 @@ class JanSegmentationSource:
             self.query_center_object(
                 daisy.Roi(roi_start[::-1], roi_shape[::-1]), threshold=0.3
             )
-            .data.transpose([2, 1, 0])
-            .astype(float)
+            .data.transpose([2,1,0])
+            .astype(np.uint8)
         )
 
     def segment_skeleton(self, skeleton: Skeleton, num_processes: int = 8) -> int:
@@ -163,7 +165,8 @@ class JanSegmentationSource:
         logging.debug("{} nodes with {} branches".format(num_nodes, num_branches))
         for node in all_nodes[:]:
             try:
-                roi_start, roi_shape = skeleton.seg.get_roi(node.value.center)
+                roi_start, roi_stop = skeleton.seg.get_roi(node.value.center)
+                roi_shape = roi_stop - roi_start
                 node_queue.put((node.key, roi_start, roi_shape))
             except RecursionError:
                 logging.debug("Maximum recursion depth hit. Too many nodes!")
@@ -187,7 +190,7 @@ class JanSegmentationSource:
         while done_fetchers.value < num_processes or not results_queue.empty():
             try:
                 node_id, data = results_queue.get(True, 5)
-                results[node_id] = data
+                results[node_id] = data if type(data) is not str else None
                 num_done += 1
                 if num_done % 50 == 0:
                     logging.info(
@@ -217,4 +220,4 @@ class JanSegmentationSource:
             fetcher.join()
             manager.shutdown()
 
-        return num_done, results
+        return results

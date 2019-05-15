@@ -81,7 +81,7 @@ def watershed(config):
     help="Volume config file for the raw image data for NN based approaches (i.e. Diluvian)",
 )
 @pass_config
-def diluvian(config):
+def diluvian(config, model_weights_file, model_training_config, model_job_config, volume_file):
     from .sarbor import query_diluvian
 
-    query_diluvian(config)
+    query_diluvian(config, model_weights_file, model_training_config, model_job_config, volume_file)

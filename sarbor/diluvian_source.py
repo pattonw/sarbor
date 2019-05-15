@@ -16,15 +16,16 @@ from diluvian.regions import Region
 
 
 class DiluvianSource:
-    def __init__(self):
+    def __init__(self, volumes, config, model_file):
         self.source = "diluvian"
-        self.volume = None
+        self.volume = volumes[list(volumes.keys())[0]]
+        self.config = config
+        self.model_file = model_file
 
     def worker(
         self,
         worker_id,
         set_devices,
-        model_file,
         volume,
         region_shape,
         nodes,
@@ -44,10 +45,10 @@ class DiluvianSource:
 
         with tf.device("/gpu:0"):
             # Late import to avoid Keras import until TF bindings are set.
-            from .network import load_model
+            from diluvian.network import load_model
 
             logging.debug("Worker %s: loading model", worker_id)
-            model = load_model(model_file, CONFIG.network)
+            model = load_model(self.model_file, CONFIG.network)
         lock.release()
 
         def is_revoked(test_node):
@@ -91,9 +92,8 @@ class DiluvianSource:
 
             image = volume.get_subvolume(
                 SubvolumeBounds(
-                    start=(node[2:]) - np.floor_divide(region_shape, 2),
-                    stop=(node[2:]) + np.floor_divide(region_shape, 2) + 1,
-                    node_id=node[0:2],
+                    start=(node[:]) - np.floor_divide(region_shape, 2),
+                    stop=(node[:]) + np.floor_divide(region_shape, 2) + 1,
                 )
             ).image
 
@@ -126,17 +126,30 @@ class DiluvianSource:
             results.put((node, region.to_body()))
 
     def segment_skeleton(self, skel: Skeleton):
-        return self.fill_skeleton_with_model_threaded_new(
-            self.model_file,
-            [node.value.center for node in skel.get_nodes()],
+        region_shape = skel.seg.fov_shape_phys[::-1] // CONFIG.volume.resolution
+        try:
+            assert all(region_shape * CONFIG.volume.resolution == skel.seg.fov_shape_phys[::-1]), "Incompatible field of view"
+        except AssertionError:
+            # This can happen because the model may be trained on some downsampled resolution i.e. 40x16x16 instead of 40x8x8.
+            # This means that the output might not be simply convertable between the new resolution, and the desired resolution,
+            # for example 40x40x40.
+            # The simplest change to make would simply be to downsample the output of sarbor less, so that will be the default behavior.
+            # This should be handled by the user interface to make sure that this sort of problem does not arise in the first place
+            skel._config.segmentations.downsample_factor = CONFIG.volume.resolution[::-1] // skel._config.segmentations.resolution_phys
+            skel._config.segmentations.fov_shape_voxels = skel._config.segmentations.fov_shape_phys // skel._config.segmentations.voxel_resolution
+            skel._config.segmentations.fov_shape_voxels += (skel._config.segmentations.fov_shape_voxels + 1) % 2
+            skel._config.segmentations.fov_shape_phys = skel._config.segmentations.fov_shape_voxels * skel._config.segmentations.voxel_resolution
+            skel._config.segmentations.validate_fov_shape()
+            logging.warn("New fov shape: {}".format(skel._config.segmentations.fov_shape_phys))
+        return {key: value.transpose([2,1,0]) for key, value in self.fill_skeleton_with_model_threaded_new(
+            {node.key: node.value.center[::-1] for node in skel.get_nodes()},
             num_workers=8,
-        )
+            region_shape=skel.seg.fov_shape_phys[::-1]
+        ).items()}
 
     def fill_skeleton_with_model_threaded_new(
         self,
-        model_file,
-        seeds,
-        volume=None,
+        nodes,
         partition=False,
         augment=False,
         bounds_input_file=None,
@@ -150,6 +163,7 @@ class DiluvianSource:
         worker_prequeue=1,
         reject_early_termination=False,
         reject_non_seed_components=True,
+        region_shape=CONFIG.model.input_fov_shape
     ):
         """
         Floodfill small regions around a list of seed points.
@@ -168,18 +182,17 @@ class DiluvianSource:
         self.remask_interval = remask_interval
         self.reject_non_seed_components = reject_non_seed_components
 
-        if volume is None:
-            raise ValueError("Volume must be provided.")
-
         # Get Volume
         self.volume = self.volume.downsample(CONFIG.volume.resolution)
 
         # Seeds come in real coordinates
-        seeds = [
-            list(volume.world_coord_to_local(volume.real_coord_to_pixel(seed)))
-            for seed in seeds
-        ]
-        region_shape = CONFIG.model.input_fov_shape
+        node_ids, seeds = zip(*[(nid,
+            np.array(self.volume.world_coord_to_local(self.volume.real_coord_to_world(seed))))
+            for nid, seed in nodes.items()
+        ])
+        map_back = {tuple(seed):nid for seed, nid in zip(seeds, node_ids)}
+        logging.warning("CONFIG input_fov_shape: {} vs Sarbor fov_shape: {}".format(CONFIG.model.input_fov_shape, (region_shape, CONFIG.volume.resolution, region_shape/CONFIG.volume.resolution)))
+        region_shape = region_shape//CONFIG.volume.resolution
 
         pbar = tqdm(desc="Seed queue", total=len(seeds), miniters=1, smoothing=0.0)
         num_nodes = len(seeds)
@@ -206,7 +219,7 @@ class DiluvianSource:
         def queue_next_seed():
             total = 0
             for seed in seed_generator:
-                if unordered_results.get(seed) is not None:
+                if unordered_results.get(tuple(seed)) is not None:
                     # This seed has already been filled.
                     total += 1
                     continue
@@ -238,11 +251,9 @@ class DiluvianSource:
             w = Process(
                 target=self.worker,
                 args=(
-                    self,
                     worker_id,
                     set_devices,
-                    model_file,
-                    volume,
+                    self.volume,
                     region_shape,
                     seed_queue,
                     results_queue,
@@ -256,11 +267,11 @@ class DiluvianSource:
         while dispatched_seeds:
             processed_seeds = 1
             expected_seed = dispatched_seeds.popleft()
-            logging.debug("Expecting seed %s", np.array_str(expected_seed))
+            logging.debug("Expecting seed %s", expected_seed)
 
             if tuple(expected_seed) in unordered_results:
                 logging.debug(
-                    "Expected seed %s is in old results", np.array_str(expected_seed)
+                    "Expected seed %s is in old results", expected_seed
                 )
                 seed = expected_seed
                 body = unordered_results[tuple(seed)]
@@ -271,15 +282,15 @@ class DiluvianSource:
                 processed_seeds += queue_next_seed()
 
                 while not np.array_equal(seed, expected_seed):
-                    logging.debug("Node %s is early, stashing", np.array_str(seed))
+                    logging.debug("Node %s is early, stashing",seed)
                     unordered_results[tuple(seed)] = body
                     seed, body = results_queue.get(True)
                     processed_seeds += queue_next_seed()
 
-            logging.debug("Processing node at %s", np.array_str(seed))
+            logging.debug("Processing node at %s", seed)
             pbar.update(processed_seeds)
 
-            if final_results.get(seed) is not None:
+            if final_results.get(tuple(seed)) is not None:
                 # This seed has already been filled.
                 logging.debug(
                     "Seed (%s) was filled but has been covered in the meantime.",
@@ -292,15 +303,17 @@ class DiluvianSource:
                 continue
 
             if body is None:
-                logging.debug("Body of Seed ({}) is None".format(seed))
+                logging.warning("Body of Seed ({}) is None".format(seed))
 
+                continue
                 # REDO THIS SEED
                 raise NotImplementedError
                 continue
 
             if not body.is_seed_in_mask():
-                logging.debug("Seed ({}) is not in its body.".format(seed))
+                logging.warning("Seed ({}) is not in its body.".format(seed))
 
+                continue
                 # REDO THIS SEED
                 raise NotImplementedError
                 continue
@@ -310,14 +323,15 @@ class DiluvianSource:
             body_size = np.count_nonzero(mask)
 
             if body_size == 0:
-                logging.debug("Body of seed {} is empty.".format(seed))
+                logging.warning("Body of seed {} is empty.".format(seed))
 
+                continue
                 # REDO THIS SEED
                 raise NotImplementedError
                 continue
 
-            final_results[seed] = mask
-            logging.debug("Filled seed ({})".format(seed))
+            final_results[map_back[tuple(seed)]] = mask
+            logging.warning("Filled seed ({})".format(seed))
 
         for _ in range(num_workers):
             seed_queue.put("DONE")

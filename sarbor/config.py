@@ -46,11 +46,9 @@ class SegmentationsConfig(BaseConfig):
     downsample_factor : sequence or ndarray of int
         How much to downsample each axis
     leaf_shape_voxels : sequence or ndarray of int
-        Voxels per leaf block in octrees and n5 TODO: make these definable seperately
-    fov_shape_phys : sequence or ndarray of int
+        Voxels per leaf block in octrees and n5 TODO: make these seperately  definable?
+    fov_shape : sequence or ndarray of int
         Shape of fov in nm
-    fov_shape_voxels : sequence or ndarray of int
-        Shape of fov in voxels
     incr_denom : float
         Amount to increment denominator to get confidence scores (n/m)
         where n is the number of times a voxel was selected as "contained"
@@ -66,22 +64,82 @@ class SegmentationsConfig(BaseConfig):
 
     def __init__(self, settings):
         self.resolution_phys = np.array(settings.get("resolution_phys", [4, 4, 40]))
-        self.start_phys = np.array(settings.get("start_phys", [403560, 121800, 158000]))
-        self.shape_phys = np.array(settings.get("shape_phys", [64000, 52000, 76000]))
+        self.start_phys = np.array(settings.get("start_phys", [403560, 121800, 158000])) # Should calculate this from skeleton if not provided
+        self.shape_phys = np.array(settings.get("shape_phys", [64000, 52000, 76000])) # Should calculate this from skeleton if not provided
         self.downsample_factor = np.array(
             settings.get("downsample_factor", [10, 10, 1])
         )
         self.leaf_shape_voxels = np.array(
             settings.get("leaf_shape_voxels", [64, 64, 64])
         )
-        self.fov_shape_phys = settings.get("fov_shape_phys", None)
-        self.fov_shape_voxels = np.array(settings.get("fov_shape_voxels", [31, 31, 31]))
+        self.fov_shape_phys = np.array(settings.get("fov_shape", [1240,1240,1240]))
         self.validate_fov_shape()
         self.incr_denom = float(settings.get("incr_denom", 1))
         self.use_sphere = bool(settings.get("use_sphere", True))
         self.interpolate_distance_nodes = int(
             settings.get("interpolate_distance_nodes", 0)
         )
+
+    @property
+    def resolution_phys(self) -> np.ndarray:
+        return self._resolution_phys.astype(float)
+    @resolution_phys.setter
+    def resolution_phys(self, value):
+        self._resolution_phys = value
+    @property
+    def start_phys(self) -> np.ndarray:
+        return self._start_phys.astype(int)
+    @start_phys.setter
+    def start_phys(self, value):
+        self._start_phys = value
+    @property
+    def shape_phys(self) -> np.ndarray:
+        return self._shape_phys.astype(int)
+    @shape_phys.setter
+    def shape_phys(self, value):
+        self._shape_phys = value
+    @property
+    def downsample_factor(self) -> np.ndarray:
+        return self._downsample_factor.astype(int)
+    @downsample_factor.setter
+    def downsample_factor(self, value):
+        self._downsample_factor = value
+    @property
+    def leaf_shape_voxels(self) -> np.ndarray:
+        return self._leaf_shape_voxels.astype(int)
+    @leaf_shape_voxels.setter
+    def leaf_shape_voxels(self, value):
+        self._leaf_shape_voxels = value
+    @property
+    def fov_shape_phys(self) -> np.ndarray:
+        return self._fov_shape_phys.astype(float)
+    @fov_shape_phys.setter
+    def fov_shape_phys(self, value):
+        self._fov_shape_phys = value
+    @property
+    def incr_denom(self):
+        return self._incr_denom
+    @incr_denom.setter
+    def incr_denom(self, value):
+        self._incr_denom = value
+    @property
+    def use_sphere(self):
+        return self._use_sphere
+    @use_sphere.setter
+    def use_sphere(self, value):
+        self._use_sphere = value
+    @property
+    def interpolate_distance_nodes(self):
+        return self._interpolate_distance_nodes
+    @interpolate_distance_nodes.setter
+    def interpolate_distance_nodes(self, value):
+        self._interpolate_distance_nodes = value
+
+
+    @property
+    def fov_shape_voxels(self) -> np.ndarray:
+        return (self._fov_shape_phys // self.voxel_resolution).astype(int)
+        
 
     @property
     def end_phys(self) -> np.ndarray:
@@ -139,27 +197,16 @@ class SegmentationsConfig(BaseConfig):
         make sure that the fov shape is consistent accross the physical and
         voxel shape descriptions since both are user definable.
         """
-        if self.fov_shape_phys is None and self.fov_shape_voxels is None:
-            raise ValueError("FOV shape must be defined in either voxels or nm")
-        elif self.fov_shape_phys is None:
-            self.fov_shape_phys = self.fov_shape_voxels * self.voxel_resolution
-        elif self.fov_shape_voxels is None:
-            assert np.equal(
-                self.fov_shape_phys % self.voxel_resolution, np.zeros([3])
-            ), "FOV dimensions are not a multiple of voxel dimensions: {} / {} = {}".format(
-                self.fov_shape_phys,
-                self.voxel_resolution,
-                self.fov_shape_phys / self.voxel_resolution,
-            )
-            self.fov_shape_voxels = self.fov_shape_phys // self.voxel_resolution
-
-        assert all(
-            np.equal(self.fov_shape_phys, self.fov_shape_voxels * self.voxel_resolution)
-        ), "Conflicting FOV shapes were defined: {} vs {}".format(
-            self.fov_shape_phys, self.fov_shape_voxels * self.voxel_resolution
+        assert all(np.equal(
+            self.fov_shape_phys % self.voxel_resolution, np.zeros([3])
+        )), "FOV dimensions are not a multiple of voxel dimensions: {} / {} = {}".format(
+            self.fov_shape_phys,
+            self.voxel_resolution,
+            self.fov_shape_phys / self.voxel_resolution,
         )
+
         assert all(np.equal(self.fov_shape_voxels % 2, np.ones([3]))), (
-            "FOV shape {} has to have an odd number of"
+            "FOV shape in voxels {} has to have an odd number of"
             + " voxels on each axis to have a center voxel"
         ).format(self.fov_shape_voxels)
 
@@ -183,7 +230,8 @@ class SkeletonConfig(BaseConfig):
         self.use_consensus = bool(settings.get("use_consensus", False))
 
         self.resample = bool(settings.get("resample", True))
-        self.resample_delta = int(settings.get("resample_delta", 500))
+        self.smoothing = str(settings.get("smoothing", "none"))
+        self.resample_delta = int(settings.get("resample_delta", 50))
         self.resample_steps = int(settings.get("resample_steps", 2000))
         self.resample_sigma = float(settings.get("resample_sigma", 0.05))
 
@@ -261,7 +309,7 @@ class Config(object):
             with open(filename, "rb") as fin:
                 settings.append(toml.load(fin))
 
-        return self.__init__(settings)
+        self.__init__(settings)
 
     def to_toml(self, filename):
         with open(filename, "w") as tomlfile:
