@@ -75,24 +75,11 @@ def query_watershed(config):
     )
 
     results = jans_segmentations.segment_skeleton(processed_skel)
+    results = {k[::-1]: mask.transpose[2,1,0] for k, mask in results.items()}
 
     processed_skel = _process_results(processed_skel, results)
 
     processed_skel.save_data_for_CATMAID()
-
-def query_test_data(config):
-    from .test_source import TestSource
-
-    processed_skel = _process_skeleton(config)
-
-    test_source = TestSource()
-
-    results = test_source.segment_skeleton(processed_skel)
-
-    processed_skel = _process_results(processed_skel, results)
-
-    processed_skel.save_data_for_CATMAID()
-    
 
 def load_volumes(volume_files, in_memory=False, name_regex=None):
     """Load HDF5 volumes specified in a TOML description file.

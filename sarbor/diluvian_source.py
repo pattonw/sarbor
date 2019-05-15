@@ -128,24 +128,42 @@ class DiluvianSource:
     def segment_skeleton(self, skel: Skeleton):
         region_shape = skel.seg.fov_shape_phys[::-1] // CONFIG.volume.resolution
         try:
-            assert all(region_shape * CONFIG.volume.resolution == skel.seg.fov_shape_phys[::-1]), "Incompatible field of view"
+            assert all(
+                region_shape * CONFIG.volume.resolution == skel.seg.fov_shape_phys[::-1]
+            ), "Incompatible field of view"
         except AssertionError:
             # This can happen because the model may be trained on some downsampled resolution i.e. 40x16x16 instead of 40x8x8.
             # This means that the output might not be simply convertable between the new resolution, and the desired resolution,
             # for example 40x40x40.
             # The simplest change to make would simply be to downsample the output of sarbor less, so that will be the default behavior.
             # This should be handled by the user interface to make sure that this sort of problem does not arise in the first place
-            skel._config.segmentations.downsample_factor = CONFIG.volume.resolution[::-1] // skel._config.segmentations.resolution_phys
-            skel._config.segmentations.fov_shape_voxels = skel._config.segmentations.fov_shape_phys // skel._config.segmentations.voxel_resolution
-            skel._config.segmentations.fov_shape_voxels += (skel._config.segmentations.fov_shape_voxels + 1) % 2
-            skel._config.segmentations.fov_shape_phys = skel._config.segmentations.fov_shape_voxels * skel._config.segmentations.voxel_resolution
+            skel._config.segmentations.downsample_factor = (
+                CONFIG.volume.resolution[::-1]
+                // skel._config.segmentations.resolution_phys
+            )
+            skel._config.segmentations.fov_shape_voxels = (
+                skel._config.segmentations.fov_shape_phys
+                // skel._config.segmentations.voxel_resolution
+            )
+            skel._config.segmentations.fov_shape_voxels += (
+                skel._config.segmentations.fov_shape_voxels + 1
+            ) % 2
+            skel._config.segmentations.fov_shape_phys = (
+                skel._config.segmentations.fov_shape_voxels
+                * skel._config.segmentations.voxel_resolution
+            )
             skel._config.segmentations.validate_fov_shape()
-            logging.warn("New fov shape: {}".format(skel._config.segmentations.fov_shape_phys))
-        return {key: value.transpose([2,1,0]) for key, value in self.fill_skeleton_with_model_threaded_new(
-            {node.key: node.value.center[::-1] for node in skel.get_nodes()},
-            num_workers=8,
-            region_shape=skel.seg.fov_shape_phys[::-1]
-        ).items()}
+            logging.warn(
+                "New fov shape: {}".format(skel._config.segmentations.fov_shape_phys)
+            )
+        return {
+            key: value.transpose([2, 1, 0])
+            for key, value in self.fill_skeleton_with_model_threaded_new(
+                {node.key: node.value.center[::-1] for node in skel.get_nodes()},
+                num_workers=8,
+                region_shape=skel.seg.fov_shape_phys[::-1],
+            ).items()
+        }
 
     def fill_skeleton_with_model_threaded_new(
         self,
@@ -163,7 +181,7 @@ class DiluvianSource:
         worker_prequeue=1,
         reject_early_termination=False,
         reject_non_seed_components=True,
-        region_shape=CONFIG.model.input_fov_shape
+        region_shape=CONFIG.model.input_fov_shape,
     ):
         """
         Floodfill small regions around a list of seed points.
@@ -186,13 +204,31 @@ class DiluvianSource:
         self.volume = self.volume.downsample(CONFIG.volume.resolution)
 
         # Seeds come in real coordinates
-        node_ids, seeds = zip(*[(nid,
-            np.array(self.volume.world_coord_to_local(self.volume.real_coord_to_world(seed))))
-            for nid, seed in nodes.items()
-        ])
-        map_back = {tuple(seed):nid for seed, nid in zip(seeds, node_ids)}
-        logging.warning("CONFIG input_fov_shape: {} vs Sarbor fov_shape: {}".format(CONFIG.model.input_fov_shape, (region_shape, CONFIG.volume.resolution, region_shape/CONFIG.volume.resolution)))
-        region_shape = region_shape//CONFIG.volume.resolution
+        node_ids, seeds = zip(
+            *[
+                (
+                    nid,
+                    np.array(
+                        self.volume.world_coord_to_local(
+                            self.volume.real_coord_to_world(seed)
+                        )
+                    ),
+                )
+                for nid, seed in nodes.items()
+            ]
+        )
+        map_back = {tuple(seed): nid for seed, nid in zip(seeds, node_ids)}
+        logging.warning(
+            "CONFIG input_fov_shape: {} vs Sarbor fov_shape: {}".format(
+                CONFIG.model.input_fov_shape,
+                (
+                    region_shape,
+                    CONFIG.volume.resolution,
+                    region_shape / CONFIG.volume.resolution,
+                ),
+            )
+        )
+        region_shape = region_shape // CONFIG.volume.resolution
 
         pbar = tqdm(desc="Seed queue", total=len(seeds), miniters=1, smoothing=0.0)
         num_nodes = len(seeds)
@@ -270,9 +306,7 @@ class DiluvianSource:
             logging.debug("Expecting seed %s", expected_seed)
 
             if tuple(expected_seed) in unordered_results:
-                logging.debug(
-                    "Expected seed %s is in old results", expected_seed
-                )
+                logging.debug("Expected seed %s is in old results", expected_seed)
                 seed = expected_seed
                 body = unordered_results[tuple(seed)]
                 del unordered_results[tuple(seed)]  # WHY
@@ -282,7 +316,7 @@ class DiluvianSource:
                 processed_seeds += queue_next_seed()
 
                 while not np.array_equal(seed, expected_seed):
-                    logging.debug("Node %s is early, stashing",seed)
+                    logging.debug("Node %s is early, stashing", seed)
                     unordered_results[tuple(seed)] = body
                     seed, body = results_queue.get(True)
                     processed_seeds += queue_next_seed()
