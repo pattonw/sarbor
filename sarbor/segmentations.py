@@ -241,6 +241,10 @@ class SegmentationSource:
         """
         Save all the data necessary to rebuild this class.
         OctreeVolumes are written to n5 datasets, and constants are pickled
+        
+        TODO option to choose which datasets to save, and option to precompute
+        and save some of the other data views (dist weighted mask etc)
+
         """
         datasets = {
             "segmentation_views": self.segmentation_views,
@@ -250,7 +254,7 @@ class SegmentationSource:
         for name, data in datasets.items():
             logging.debug("Saving {} to n5!".format(name))
             logging.debug("Num leaves = {}".format(len(list(data.iter_leaves()))))
-            data.write_to_n5(folder_path, name)
+            data.write_to_n5(folder_path + "/segmentations.n5", name)
         pickle.dump(self._constants, Path(folder_path, "constants.obj").open("wb"))
 
     def load_data(self, folder_path: Path):

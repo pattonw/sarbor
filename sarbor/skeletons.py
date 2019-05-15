@@ -175,12 +175,12 @@ class Skeleton:
                 (255 * mask)
                 .reshape(
                     [
-                        mask.shape[0] // self.seg.downsample_factor[0],
-                        self.seg.downsample_factor[0],
-                        mask.shape[1] // self.seg.downsample_factor[1],
-                        self.seg.downsample_factor[1],
-                        mask.shape[2] // self.seg.downsample_factor[2],
-                        self.seg.downsample_factor[2],
+                        self.seg.fov_shape_voxels[0],
+                        mask.shape[0] // self.seg.fov_shape_voxels[0],
+                        self.seg.fov_shape_voxels[1],
+                        mask.shape[1] // self.seg.fov_shape_voxels[1],
+                        self.seg.fov_shape_voxels[2],
+                        mask.shape[2] // self.seg.fov_shape_voxels[2],
                     ]
                 )
                 .mean(5)
@@ -272,9 +272,9 @@ class Skeleton:
                         (node.key, node.parent_key), [None, None]
                     )[1],
                     branch_rankings[node.key][1],
-                    branch_rankings[node.key][0][0],
-                    branch_rankings[node.key][0][1],
-                    branch_rankings[node.key][0][2],
+                    branch_rankings[node.key][0][0] * self._config.segmentations.voxel_resolution[0],
+                    branch_rankings[node.key][0][1] * self._config.segmentations.voxel_resolution[1],
+                    branch_rankings[node.key][0][2] * self._config.segmentations.voxel_resolution[2],
                 )
             )
         data = np.array(ranking_data)
@@ -439,6 +439,10 @@ class Skeleton:
         new_tree_nodes = []
         # new nodes will need new nids/pids thus we will reassign all nids starting at 0
         new_node_id = 0
+        # store mapping from new node ids back to closest original node ids
+        new_nid_to_orig_map = {}
+
+
         # get each straight segment
         for segment in self.get_segments():
 
@@ -449,6 +453,7 @@ class Skeleton:
                 new_node_id += 1
                 new_tree_nodes.append(root)
                 branch_points[segment[0].key] = root
+                new_nid_to_orig_map[0] = segment[0].key
 
             # get interpolated nodes. includes tail but not root
             root_key = branch_points[segment[0].key]
@@ -456,19 +461,35 @@ class Skeleton:
                 segment, new_node_id, root_key
             )
 
+            last = 0
+            for nid, pid, x, y, z in new_interpolated_nodes:
+                closest = None
+                for i in range(last, len(segment)):
+                    node = segment[i]
+                    if closest is None:
+                        closest = node
+                    elif np.linalg.norm(node.value.center - [x,y,z]) < np.linalg.norm(closest.value.center - [x,y,z]):
+                        closest = node
+                new_nid_to_orig_map[nid] = closest.key
+                
+
             # save tail node for future referece if it is a branch
             if len(segment[-1].children) > 1:
-                branch_points[segment[-1].key] = new_interpolated_nodes[-1]
+                branch_points[segment[-1].key] = new_interpolated_nodes[-1] if len(new_interpolated_nodes) > 0 else root_key
 
             new_tree_nodes = new_tree_nodes + new_interpolated_nodes
 
         # create a new tree with the same config and input the new nodes
         new_skeleton = self.clone()
         new_skeleton.input_nid_pid_x_y_z(new_tree_nodes)
-        return new_skeleton
+        return new_skeleton, new_nid_to_orig_map
 
     def resample_segment(self, nodes, new_node_id, root):
-        def get_smoothed(coords, steps, sigma_fraction):
+        def get_smoothed(coords, sigma_fraction):
+            max_dist = 0
+            for i in range(1, len(coords)):
+                max_dist = max(np.linalg.norm(np.array(coords[i]) - np.array(coords[i-1])), max_dist)
+            steps = max(2 * len(coords) * max_dist // self.config.resample_delta, 10)
             x_y_z = list(zip(*coords))
             t = np.linspace(0, 1, len(coords))
             t2 = np.linspace(0, 1, steps)
@@ -477,26 +498,29 @@ class Skeleton:
             x_y_z_2 = list(map(lambda x: np.interp(t2, t, x), x_y_z))
 
             # gaussian smooth points allong each axis
-            x_y_z_3 = list(
-                map(
-                    lambda x: gaussian_filter1d(
-                        x, steps * sigma_fraction, mode="nearest"
-                    ),
-                    x_y_z_2,
+            if self.config.smoothing == "gaussian":
+                x_y_z_3 = list(
+                    map(
+                        lambda x: gaussian_filter1d(
+                            x, steps * sigma_fraction, mode="nearest"
+                        ),
+                        x_y_z_2,
+                    )
                 )
-            )
 
-            # gaussian smooth moves end points, thus we need to
-            # linearly interpolate between original ends and gaussian smoothed ends
-            t = np.linspace(0, 1, 2)
-            t2 = np.linspace(0, 1, steps)
-            start = [[x_y_z[i][0], x_y_z_3[i][0]] for i in range(3)]
-            end = [[x_y_z_3[i][-1], x_y_z[i][-1]] for i in range(3)]
-            start = list(map(lambda x: np.interp(t2, t, x), start))
-            end = list(map(lambda x: np.interp(t2, t, x), end))
-            x_y_z_3 = list(
-                zip(*(list(zip(*start)) + list(zip(*x_y_z_3)) + list(zip(*end))))
-            )
+                # gaussian smooth moves end points, thus we need to
+                # linearly interpolate between original ends and gaussian smoothed ends
+                t = np.linspace(0, 1, 2)
+                t2 = np.linspace(0, 1, steps)
+                start = [[x_y_z[i][0], x_y_z_3[i][0]] for i in range(3)]
+                end = [[x_y_z_3[i][-1], x_y_z[i][-1]] for i in range(3)]
+                start = list(map(lambda x: np.interp(t2, t, x), start))
+                end = list(map(lambda x: np.interp(t2, t, x), end))
+                x_y_z_3 = list(
+                    zip(*(list(zip(*start)) + list(zip(*x_y_z_3)) + list(zip(*end))))
+                )
+            elif self.config.smoothing == "none":
+                x_y_z_3 = x_y_z_2
 
             return zip(*x_y_z_3)
 
@@ -530,7 +554,7 @@ class Skeleton:
 
         # contains both end points
         smoothed_coords = list(
-            get_smoothed(coords, self.config.resample_steps, self.config.resample_sigma)
+            get_smoothed(coords, self.config.resample_sigma)
         )
 
         # does not contain root
