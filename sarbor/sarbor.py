@@ -5,6 +5,7 @@ import logging
 from .config import Config
 from .skeletons import Skeleton
 
+logger = logging.getLogger('sarbor')
 
 """Main module."""
 
@@ -33,15 +34,15 @@ def _process_results(skel: Skeleton, results) -> Skeleton:
             data = results[node.key]
             if data is not None:
                 skel.fill(node.key, data.astype(np.uint8))
-                logging.debug(
+                logger.debug(
                     "Node {} had data with max value {}!".format(node.key, data.max())
                 )
             else:
-                logging.info("Node {} had no data!".format(node.key))
+                logger.debug("Node {} had no data!".format(node.key))
         except KeyError:
-            logging.debug("No data for node {}!".format(node.key))
+            logger.debug("No data for node {}!".format(node.key))
         except TypeError:
-            logging.debug("Node {} data was None".format(node.key))
+            logger.debug("Node {} data was None".format(node.key))
     return skel
 
 
@@ -74,8 +75,7 @@ def query_watershed(config):
         sensitives_file="/groups/cardona/home/pattonw/Code/Scripts/error_detection/sensitives.json"
     )
 
-    results = jans_segmentations.segment_skeleton(processed_skel)
-    results = {k[::-1]: mask.transpose[2,1,0] for k, mask in results.items()}
+    results = jans_segmentations.segment_skeleton(processed_skel, 32)
 
     processed_skel = _process_results(processed_skel, results)
 

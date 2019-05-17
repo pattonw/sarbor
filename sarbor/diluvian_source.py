@@ -14,6 +14,8 @@ from diluvian.config import CONFIG
 from diluvian.volumes import SubvolumeBounds
 from diluvian.regions import Region
 
+logger = logging.getLogger('sarbor')
+
 
 class DiluvianSource:
     def __init__(self, volumes, config, model_file):
@@ -47,7 +49,7 @@ class DiluvianSource:
             # Late import to avoid Keras import until TF bindings are set.
             from diluvian.network import load_model
 
-            logging.debug("Worker %s: loading model", worker_id)
+            logger.debug("Worker %s: loading model", worker_id)
             model = load_model(self.model_file, CONFIG.network)
         lock.release()
 
@@ -64,7 +66,7 @@ class DiluvianSource:
             node = nodes.get(True)
 
             if not isinstance(node, np.ndarray):
-                logging.debug("Worker %s: got DONE", worker_id)
+                logger.debug("Worker %s: got DONE", worker_id)
                 break
 
             if is_revoked(node):
@@ -81,12 +83,12 @@ class DiluvianSource:
                     stop = True
                 return stop
 
-            logging.debug("Worker %s: got seed %s", worker_id, str(node))
+            logger.debug("Worker %s: got seed %s", worker_id, str(node))
 
-            logging.debug(
+            logger.debug(
                 "start: {0}".format(node[2:] - np.floor_divide(region_shape, 2))
             )
-            logging.debug(
+            logger.debug(
                 "stop: {0}".format(node[2:] + np.floor_divide(region_shape, 2) + 1)
             )
 
@@ -118,10 +120,10 @@ class DiluvianSource:
                     )
                 )
             except Region.EarlyFillTermination:
-                logging.debug("Worker %s: node %s failed to fill", worker_id, str(node))
+                logger.debug("Worker %s: node %s failed to fill", worker_id, str(node))
             except StopIteration:
                 pass
-            logging.debug("Worker %s: node %s filled", worker_id, str(node))
+            logger.debug("Worker %s: node %s filled", worker_id, str(node))
 
             results.put((node, region.to_body()))
 
@@ -153,7 +155,7 @@ class DiluvianSource:
                 * skel._config.segmentations.voxel_resolution
             )
             skel._config.segmentations.validate_fov_shape()
-            logging.warn(
+            logger.warn(
                 "New fov shape: {}".format(skel._config.segmentations.fov_shape_phys)
             )
         return {
@@ -218,7 +220,7 @@ class DiluvianSource:
             ]
         )
         map_back = {tuple(seed): nid for seed, nid in zip(seeds, node_ids)}
-        logging.warning(
+        logger.warning(
             "CONFIG input_fov_shape: {} vs Sarbor fov_shape: {}".format(
                 CONFIG.model.input_fov_shape,
                 (
@@ -273,7 +275,7 @@ class DiluvianSource:
         if "CUDA_VISIBLE_DEVICES" in os.environ:
             set_devices = False
             num_workers = 1
-            logging.warn(
+            logger.warn(
                 "Environment variable CUDA_VISIBLE_DEVICES is set, "
                 + "so only one worker can be used.\n"
                 + "See https://github.com/aschampion/diluvian/issues/11"
@@ -303,10 +305,10 @@ class DiluvianSource:
         while dispatched_seeds:
             processed_seeds = 1
             expected_seed = dispatched_seeds.popleft()
-            logging.debug("Expecting seed %s", expected_seed)
+            logger.debug("Expecting seed %s", expected_seed)
 
             if tuple(expected_seed) in unordered_results:
-                logging.debug("Expected seed %s is in old results", expected_seed)
+                logger.debug("Expected seed %s is in old results", expected_seed)
                 seed = expected_seed
                 body = unordered_results[tuple(seed)]
                 del unordered_results[tuple(seed)]  # WHY
@@ -316,17 +318,17 @@ class DiluvianSource:
                 processed_seeds += queue_next_seed()
 
                 while not np.array_equal(seed, expected_seed):
-                    logging.debug("Node %s is early, stashing", seed)
+                    logger.debug("Node %s is early, stashing", seed)
                     unordered_results[tuple(seed)] = body
                     seed, body = results_queue.get(True)
                     processed_seeds += queue_next_seed()
 
-            logging.debug("Processing node at %s", seed)
+            logger.debug("Processing node at %s", seed)
             pbar.update(processed_seeds)
 
             if final_results.get(tuple(seed)) is not None:
                 # This seed has already been filled.
-                logging.debug(
+                logger.debug(
                     "Seed (%s) was filled but has been covered in the meantime.",
                     np.array_str(seed),
                 )
@@ -337,7 +339,7 @@ class DiluvianSource:
                 continue
 
             if body is None:
-                logging.warning("Body of Seed ({}) is None".format(seed))
+                logger.warning("Body of Seed ({}) is None".format(seed))
 
                 continue
                 # REDO THIS SEED
@@ -345,7 +347,7 @@ class DiluvianSource:
                 continue
 
             if not body.is_seed_in_mask():
-                logging.warning("Seed ({}) is not in its body.".format(seed))
+                logger.warning("Seed ({}) is not in its body.".format(seed))
 
                 continue
                 # REDO THIS SEED
@@ -357,7 +359,7 @@ class DiluvianSource:
             body_size = np.count_nonzero(mask)
 
             if body_size == 0:
-                logging.warning("Body of seed {} is empty.".format(seed))
+                logger.warning("Body of seed {} is empty.".format(seed))
 
                 continue
                 # REDO THIS SEED
@@ -365,7 +367,7 @@ class DiluvianSource:
                 continue
 
             final_results[map_back[tuple(seed)]] = mask
-            logging.warning("Filled seed ({})".format(seed))
+            logger.warning("Filled seed ({})".format(seed))
 
         for _ in range(num_workers):
             seed_queue.put("DONE")

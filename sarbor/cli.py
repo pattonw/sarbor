@@ -1,6 +1,15 @@
 import click
 from .config import Config
 import logging
+import sys
+
+logger = logging.getLogger('sarbor')
+logger.setLevel(logging.DEBUG)
+console = logging.StreamHandler(sys.stdout)
+console.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(name)s: (%(levelname)s) %(message)s')
+console.setFormatter(formatter)
+logger.addHandler(console)
 
 pass_config = click.make_pass_decorator(Config, ensure=True)
 
@@ -35,7 +44,7 @@ def cli(
     output_file: click.Path,
     log_level: int,
 ):
-    logging.basicConfig(level=log_level)
+    #console.setLevel(level=log_level)
     config.from_toml(sarbor_config)
     config.skeleton.output_file_base = output_file
     config.skeleton.csv = skeleton_csv

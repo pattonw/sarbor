@@ -15,6 +15,8 @@ import time
 
 from multiprocessing import Process, Manager, Value
 
+logger = logging.getLogger('sarbor')
+
 """
 This class contains information about the Calyx volume used by the
 futusa group
@@ -50,27 +52,27 @@ class JanSegmentationSource:
         while True:
             try:
                 node_id, roi_start, roi_shape = node_queue.get(False)
-                logging.debug("Got node {}!".format(node_id))
+                logger.debug("Got node {}!".format(node_id))
             except queue.Empty:
-                logging.debug("Worker {} Done".format(worker_id))
+                logger.debug("Worker {} Done".format(worker_id))
                 with done_workers.get_lock():
                     done_workers.value += 1
                 break
             try:
                 segmentation_data = self.get_segmentation(roi_start, roi_shape)
                 results_queue.put((node_id, segmentation_data))
-                logging.debug("Successfully segmented node {}".format(node_id))
+                logger.debug("Successfully segmented node {}".format(node_id))
             except ValueError as e:
                 # This error should only be caused by the roi being outside
                 # segmented volume bounds
-                logging.debug("Node failed! {}".format(e))
+                logger.debug("Node failed! {}".format(e))
                 pass
             except OperationFailure as e:
-                logging.warn(e)
+                logger.warn(e)
             except AssertionError as e:
                 results_queue.put((node_id, str(e)))
             # except Exception as e:
-            #    logging.warn("Unknown Error: {}".format(e))
+            #    logger.warn("Unknown Error: {}".format(e))
             #    pass
 
     def query_local_segmentation(self, roi, threshold):
@@ -162,20 +164,20 @@ class JanSegmentationSource:
         all_nodes = list(skeleton.get_nodes())
         num_nodes = len(all_nodes)
         num_branches = len(branch_nodes)
-        logging.debug("{} nodes with {} branches".format(num_nodes, num_branches))
+        logger.debug("{} nodes with {} branches".format(num_nodes, num_branches))
         for node in all_nodes[:]:
             try:
                 roi_start, roi_stop = skeleton.seg.get_roi(node.value.center)
                 roi_shape = roi_stop - roi_start
                 node_queue.put((node.key, roi_start, roi_shape))
             except RecursionError:
-                logging.debug("Maximum recursion depth hit. Too many nodes!")
+                logger.debug("Maximum recursion depth hit. Too many nodes!")
                 node_queue = manager.Queue()
                 continue
 
         fetchers = []
 
-        logging.debug("Starting Fetchers!")
+        logger.debug("Starting Fetchers!")
         for fetcher_id in range(num_processes):
             fetcher = Process(
                 target=self.data_fetcher,
@@ -193,24 +195,24 @@ class JanSegmentationSource:
                 results[node_id] = data if type(data) is not str else None
                 num_done += 1
                 if num_done % 50 == 0:
-                    logging.info(
+                    logger.debug(
                         "{} out of {} done! avg: {:.3f} seconds per node".format(
                             num_done, num_nodes, (time.time() - start) / num_done
                         )
                     )
             except TypeError as e:
-                logging.debug("Waiting...")
-                logging.debug(e)
+                logger.debug("Waiting...")
+                logger.debug(e)
                 num_done += 1
                 pass
             except queue.Empty:
-                logging.debug(
+                logger.debug(
                     "Empty Queue! {}/{} fetchers done".format(
                         done_fetchers.value, num_processes
                     )
                 )
                 pass
-        logging.info(
+        logger.info(
             "{} fetchers done! {} nodes skipped!".format(
                 done_fetchers.value, num_nodes - num_done
             )
