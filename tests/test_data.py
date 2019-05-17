@@ -31,7 +31,7 @@ class TestSarborReal(unittest.TestCase):
         """Tear down test fixtures, if any."""
 
     def test_resample(self):
-        sampled_skel = self.skel.resample_segments()
+        sampled_skel, original_node_mapping = self.skel.resample_segments()
         # Test leaves/branches/root didn't move
         og_interesting = [
             node

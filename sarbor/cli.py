@@ -4,9 +4,9 @@ import logging
 import sys
 
 logger = logging.getLogger('sarbor')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 console = logging.StreamHandler(sys.stdout)
-console.setLevel(logging.DEBUG)
+console.setLevel(logging.INFO)
 formatter = logging.Formatter('%(name)s: (%(levelname)s) %(message)s')
 console.setFormatter(formatter)
 logger.addHandler(console)
@@ -44,7 +44,8 @@ def cli(
     output_file: click.Path,
     log_level: int,
 ):
-    #console.setLevel(level=log_level)
+    console.setLevel(level=log_level)
+    logger.setLevel(level=log_level)
     config.from_toml(sarbor_config)
     config.skeleton.output_file_base = output_file
     config.skeleton.csv = skeleton_csv
