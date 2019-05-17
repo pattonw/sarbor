@@ -8,6 +8,7 @@ from .octrees import OctreeVolume
 from .config import SegmentationsConfig
 from .arbors import Node
 
+logger = logging.getLogger('sarbor')
 
 class SegmentationSource:
     """
@@ -252,8 +253,8 @@ class SegmentationSource:
             "distances": self.distances,
         }
         for name, data in datasets.items():
-            logging.debug("Saving {} to n5!".format(name))
-            logging.debug("Num leaves = {}".format(len(list(data.iter_leaves()))))
+            logger.debug("Saving {} to n5!".format(name))
+            logger.debug("Num leaves = {}".format(len(list(data.iter_leaves()))))
             data.write_to_n5(folder_path + "/segmentations.n5", name)
         pickle.dump(self._constants, Path(folder_path, "constants.obj").open("wb"))
 
@@ -375,7 +376,7 @@ class SegmentationSource:
 
     def _distance_mask(self, bounds: List[slice]) -> np.ndarray:
         distances = self.distances[bounds]
-        logging.debug(
+        logger.debug(
             "Percent of distances seen that are infinite is: {}".format(
                 np.isinf(distances).sum() / np.prod(distances.shape)
             )
