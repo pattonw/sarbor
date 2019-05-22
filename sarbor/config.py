@@ -314,3 +314,60 @@ class Config(object):
     def to_toml(self, filename):
         with open(filename, "w") as tomlfile:
             tomlfile.write(str(self))
+
+class CachedLSDConfig(BaseConfig):
+    """A complete collection of configuration objects.
+
+    Attributes
+    ----------
+    """
+
+    def __init__(self, settings_collection=None):
+        if settings_collection is not None:
+            settings = settings_collection[0].copy()
+            for s in settings_collection:
+                for c in s:
+                    if c in settings and isinstance(settings[c], dict):
+                        settings[c].update(s[c])
+                    else:
+                        settings[c] = s[c]
+        else:
+            settings = {}
+
+        self.sensitives_file = settings.get("sensitives_file", None)
+
+    def __str__(self):
+        sanitized = {}
+        for n, c in self.__dict__.items():
+            if not isinstance(c, BaseConfig):
+                sanitized[n] = c
+                continue
+            sanitized[n] = {}
+            for k, v in c.__dict__.items():
+                if isinstance(v, np.ndarray):
+                    sanitized[n][k] = v.tolist()
+                else:
+                    sanitized[n][k] = v
+        return toml.dumps(sanitized)
+
+    def from_toml(self, *filenames):
+        """Reinitializes this Config from a list of TOML configuration files.
+
+        Existing settings are discarded. When multiple files are provided,
+        configuration is overridden by later files in the list.
+
+        Parameters
+        ----------
+        filenames : interable of str
+            Filenames of TOML configuration files to load.
+        """
+        settings = []
+        for filename in filenames:
+            with open(filename, "rb") as fin:
+                settings.append(toml.load(fin))
+
+        self.__init__(settings)
+
+    def to_toml(self, filename):
+        with open(filename, "w") as tomlfile:
+            tomlfile.write(str(self))

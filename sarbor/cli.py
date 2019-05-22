@@ -52,11 +52,20 @@ def cli(
 
 
 @cli.command()
+@click.option(
+    "--cached-lsd-config",
+    default=None,
+    type=click.Path(),
+    help="Configuration file for cached lsd segmentation source.",
+    required=True,
+)
 @pass_config
-def watershed(config):
-    from .sarbor import query_watershed
+def cached_lsd(config, cached_lsd_config):
+    from .sarbor import query_cached_lsd
 
-    query_watershed(config)
+    logger.warning("Starting a cached lsd job with config: {}".format(cached_lsd_config))
+
+    query_cached_lsd(config, cached_lsd_config)
 
 
 @cli.command()

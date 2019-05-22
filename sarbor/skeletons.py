@@ -220,7 +220,7 @@ class Skeleton:
                 consensus=self.config.use_consensus,
             )
         if self.config.save_segmentations:
-            self.seg.save_data(self.config.output_file_base)
+            self.seg.save_data_for_CATMAID(self.config.output_file_base)
         if self.config.save_masks:
             nid_mask_map = {node.key: node.value.mask for node in self.get_nodes()}
             pickle.dump(

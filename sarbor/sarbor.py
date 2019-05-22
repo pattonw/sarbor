@@ -66,16 +66,16 @@ def query_diluvian(config, model_weights_file, model_training_config, model_job_
     return None
 
 
-def query_watershed(config):
-    from .watershed_source import JanSegmentationSource
-
+def query_cached_lsd(config, cached_lsd_config_path):
+    from .cached_lsd_source import CachedLSDSource
     processed_skel = _process_skeleton(config)
 
-    jans_segmentations = JanSegmentationSource(
-        sensitives_file="/groups/cardona/home/pattonw/Code/Scripts/error_detection/sensitives.json"
+    #"/groups/cardona/home/pattonw/Code/Scripts/error_detection/sensitives.json"
+    lsd_source = CachedLSDSource(
+        config_file=cached_lsd_config_path
     )
 
-    results = jans_segmentations.segment_skeleton(processed_skel, 32)
+    results = lsd_source.segment_skeleton(processed_skel, 32)
 
     processed_skel = _process_results(processed_skel, results)
 
