@@ -326,13 +326,13 @@ class Config(object):
         """
         settings = []
         for filename in filenames:
-            with open(filename, "rb") as fin:
+            with filename.open("rb") as fin:
                 settings.append(toml.load(fin))
 
         self.__init__(settings)
 
     def to_toml(self, filename):
-        with open(filename, "w") as tomlfile:
+        with filename.open("w") as tomlfile:
             tomlfile.write(str(self))
 
 
@@ -384,11 +384,11 @@ class CachedLSDConfig(BaseConfig):
         """
         settings = []
         for filename in filenames:
-            with open(filename, "rb") as fin:
+            with filename.open("rb") as fin:
                 settings.append(toml.load(fin))
 
         self.__init__(settings)
 
     def to_toml(self, filename):
-        with open(filename, "w") as tomlfile:
+        with filename.open("w") as tomlfile:
             tomlfile.write(str(self))
