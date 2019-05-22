@@ -1,4 +1,5 @@
 from typing import List, Dict, Tuple
+from pathlib import Path
 import numpy as np
 import queue
 import logging
@@ -8,7 +9,8 @@ import daisy
 import lsd
 import funlib.segment
 
-from sarbor import Skeleton
+from .sarbor import Skeleton
+from .config import CachedLSDConfig
 
 import json
 import time
@@ -17,30 +19,20 @@ from multiprocessing import Process, Manager, Value
 
 logger = logging.getLogger('sarbor')
 
-"""
-This class contains information about the Calyx volume used by the
-futusa group
 
-TODO: Add a sensitives file that keeps track of the file location
-since that is also CALYX specific
-"""
-
-
-class JanSegmentationSource:
-    def __init__(self, sensitives_file: str = "sensitives.json", volume=None):
-        self.sensitives = json.load(open(sensitives_file, "r"))
+class CachedLSDSource:
+    def __init__(self, config_file, volume=None):
+        self.config = CachedLSDConfig()
+        self.config.from_toml(config_file)
+        self.sensitives = json.load(Path(Path.home(), self.config.sensitives_file).open("r"))
 
         self.mongo_db = self.sensitives["mongo_db"]
         self.frag_db_host = self.sensitives["frag_db_host"]
         self.frag_db_name = self.sensitives["frag_db_name"]
         self.edges_collection = self.sensitives["edges_collection"]
-        self.mount_location = self.sensitives["mount_location"]
-        self.rel_fragments_file = self.sensitives["rel_fragments_file"]
+        self.fragments_file = self.sensitives["fragments_file"]
         self.fragments_dataset = self.sensitives["fragments_dataset"]
 
-    @property
-    def fragments_file(self):
-        return "{}/{}".format(self.mount_location, self.rel_fragments_file)
 
     def data_fetcher(
         self,

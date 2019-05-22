@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Tuple, Iterable
 from pathlib import Path
 import pickle
 import logging
+import pyn5
 
 from .octrees import OctreeVolume
 from .config import SegmentationsConfig
@@ -22,8 +23,7 @@ class SegmentationSource:
         Minimum distance from each voxel to a sample point during segmentation
     """
 
-    def __init__(self, config: SegmentationsConfig, constants: Dict[str, Any] = {}):
-        self._constants = constants
+    def __init__(self, config: SegmentationsConfig):
         self._sphere = None
 
         # Octrees
@@ -240,12 +240,8 @@ class SegmentationSource:
 
     def save_data(self, folder_path: Path):
         """
-        Save all the data necessary to rebuild this class.
-        OctreeVolumes are written to n5 datasets, and constants are pickled
-        
-        TODO option to choose which datasets to save, and option to precompute
-        and save some of the other data views (dist weighted mask etc)
-
+        Save all the data necessary to rebuild retrieve
+        any segmentation from this class
         """
         datasets = {
             "segmentation_views": self.segmentation_views,
@@ -256,10 +252,18 @@ class SegmentationSource:
             logger.debug("Saving {} to n5!".format(name))
             logger.debug("Num leaves = {}".format(len(list(data.iter_leaves()))))
             data.write_to_n5(folder_path + "/segmentations.n5", name)
-        pickle.dump(self._constants, Path(folder_path, "constants.obj").open("wb"))
+
+    def save_data_for_CATMAID(self, folder_path: Path):
+        """
+        Save the segmentation confidence score
+        """
+        pyn5.create_dataset(folder_path + "/segmentations.n5", "confidence", [int(x) for x in self.end_voxel], [int(x) for x in self.leaf_shape_voxels], "UINT8")
+        dataset = pyn5.open(folder_path + "/segmentations.n5", "confidence")
+        for leaf in self.distances.iter_leaves():
+            pyn5.write(dataset, leaf.bounds, (255*self._view_weighted_mask(tuple(map(slice, leaf.bounds[0], leaf.bounds[1])))).astype(np.uint8), np.uint8)
+
 
     def load_data(self, folder_path: Path):
-        self._constants = pickle.load(Path(folder_path, "constants.obj").open("rb"))
         self._segmentation_views = OctreeVolume.read_from_n5(
             folder_path, "segmentation_views", self.shape_voxel
         )
@@ -269,9 +273,6 @@ class SegmentationSource:
         self._distances = OctreeVolume.read_from_n5(
             folder_path, "distances", self.shape_voxel
         )
-
-    def extract_data(self):
-        return self._constants
 
     def transform_bounds(self, bounds: Tuple[np.ndarray, np.ndarray]) -> Tuple[slice]:
         """
