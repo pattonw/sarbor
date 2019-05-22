@@ -1,7 +1,6 @@
 import numpy as np
-from typing import Dict, Any, List, Tuple, Iterable
+from typing import Any, List, Tuple, Iterable
 from pathlib import Path
-import pickle
 import logging
 import pyn5
 
@@ -9,7 +8,8 @@ from .octrees import OctreeVolume
 from .config import SegmentationsConfig
 from .arbors import Node
 
-logger = logging.getLogger('sarbor')
+logger = logging.getLogger("sarbor")
+
 
 class SegmentationSource:
     """
@@ -257,11 +257,26 @@ class SegmentationSource:
         """
         Save the segmentation confidence score
         """
-        pyn5.create_dataset(folder_path + "/segmentations.n5", "confidence", [int(x) for x in self.end_voxel], [int(x) for x in self.leaf_shape_voxels], "UINT8")
+        pyn5.create_dataset(
+            folder_path + "/segmentations.n5",
+            "confidence",
+            [int(x) for x in self.end_voxel],
+            [int(x) for x in self.leaf_shape_voxels],
+            "UINT8",
+        )
         dataset = pyn5.open(folder_path + "/segmentations.n5", "confidence")
         for leaf in self.distances.iter_leaves():
-            pyn5.write(dataset, leaf.bounds, (255*self._view_weighted_mask(tuple(map(slice, leaf.bounds[0], leaf.bounds[1])))).astype(np.uint8), np.uint8)
-
+            pyn5.write(
+                dataset,
+                leaf.bounds,
+                (
+                    255
+                    * self._view_weighted_mask(
+                        tuple(map(slice, leaf.bounds[0], leaf.bounds[1]))
+                    )
+                ).astype(np.uint8),
+                np.uint8,
+            )
 
     def load_data(self, folder_path: Path):
         self._segmentation_views = OctreeVolume.read_from_n5(

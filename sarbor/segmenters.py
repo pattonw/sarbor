@@ -1,10 +1,12 @@
 from skeletons import Skeleton
 
-class Segmenter():
+
+class Segmenter:
     """
     A source for querying segmentations
     """
-    def __init__(self, **kwargs)
+
+    def __init__(self, **kwargs):
         self.stuff = kwargs
 
     def segment_skeleton(self, skel: Skeleton):

@@ -14,7 +14,7 @@ from diluvian.config import CONFIG
 from diluvian.volumes import SubvolumeBounds
 from diluvian.regions import Region
 
-logger = logging.getLogger('sarbor')
+logger = logging.getLogger("sarbor")
 
 
 class DiluvianSource:
@@ -134,11 +134,15 @@ class DiluvianSource:
                 region_shape * CONFIG.volume.resolution == skel.seg.fov_shape_phys[::-1]
             ), "Incompatible field of view"
         except AssertionError:
-            # This can happen because the model may be trained on some downsampled resolution i.e. 40x16x16 instead of 40x8x8.
-            # This means that the output might not be simply convertable between the new resolution, and the desired resolution,
+            # This can happen because the model may be trained on some downsampled resolution
+            # i.e. 40x16x16 instead of 40x8x8.
+            # This means that the output might not be simply convertable between the new
+            # resolution, and the desired resolution,
             # for example 40x40x40.
-            # The simplest change to make would simply be to downsample the output of sarbor less, so that will be the default behavior.
-            # This should be handled by the user interface to make sure that this sort of problem does not arise in the first place
+            # The simplest change to make would simply be to downsample the output of sarbor
+            # less, so that will be the default behavior.
+            # This should be handled by the user interface to make sure that this sort of
+            # problem does not arise in the first place
             skel._config.segmentations.downsample_factor = (
                 CONFIG.volume.resolution[::-1]
                 // skel._config.segmentations.resolution_phys
