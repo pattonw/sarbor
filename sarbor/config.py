@@ -64,15 +64,19 @@ class SegmentationsConfig(BaseConfig):
 
     def __init__(self, settings):
         self.resolution_phys = np.array(settings.get("resolution_phys", [4, 4, 40]))
-        self.start_phys = np.array(settings.get("start_phys", [403560, 121800, 158000])) # Should calculate this from skeleton if not provided
-        self.shape_phys = np.array(settings.get("shape_phys", [64000, 52000, 76000])) # Should calculate this from skeleton if not provided
+        self.start_phys = np.array(
+            settings.get("start_phys", [403560, 121800, 158000])
+        )  # Should calculate this from skeleton if not provided
+        self.shape_phys = np.array(
+            settings.get("shape_phys", [64000, 52000, 76000])
+        )  # Should calculate this from skeleton if not provided
         self.downsample_factor = np.array(
             settings.get("downsample_factor", [10, 10, 1])
         )
         self.leaf_shape_voxels = np.array(
             settings.get("leaf_shape_voxels", [64, 64, 64])
         )
-        self.fov_shape_phys = np.array(settings.get("fov_shape", [1240,1240,1240]))
+        self.fov_shape_phys = np.array(settings.get("fov_shape", [1240, 1240, 1240]))
         self.validate_fov_shape()
         self.incr_denom = float(settings.get("incr_denom", 1))
         self.use_sphere = bool(settings.get("use_sphere", True))
@@ -83,63 +87,78 @@ class SegmentationsConfig(BaseConfig):
     @property
     def resolution_phys(self) -> np.ndarray:
         return self._resolution_phys.astype(float)
+
     @resolution_phys.setter
     def resolution_phys(self, value):
         self._resolution_phys = value
+
     @property
     def start_phys(self) -> np.ndarray:
         return self._start_phys.astype(int)
+
     @start_phys.setter
     def start_phys(self, value):
         self._start_phys = value
+
     @property
     def shape_phys(self) -> np.ndarray:
         return self._shape_phys.astype(int)
+
     @shape_phys.setter
     def shape_phys(self, value):
         self._shape_phys = value
+
     @property
     def downsample_factor(self) -> np.ndarray:
         return self._downsample_factor.astype(int)
+
     @downsample_factor.setter
     def downsample_factor(self, value):
         self._downsample_factor = value
+
     @property
     def leaf_shape_voxels(self) -> np.ndarray:
         return self._leaf_shape_voxels.astype(int)
+
     @leaf_shape_voxels.setter
     def leaf_shape_voxels(self, value):
         self._leaf_shape_voxels = value
+
     @property
     def fov_shape_phys(self) -> np.ndarray:
         return self._fov_shape_phys.astype(float)
+
     @fov_shape_phys.setter
     def fov_shape_phys(self, value):
         self._fov_shape_phys = value
+
     @property
     def incr_denom(self):
         return self._incr_denom
+
     @incr_denom.setter
     def incr_denom(self, value):
         self._incr_denom = value
+
     @property
     def use_sphere(self):
         return self._use_sphere
+
     @use_sphere.setter
     def use_sphere(self, value):
         self._use_sphere = value
+
     @property
     def interpolate_distance_nodes(self):
         return self._interpolate_distance_nodes
+
     @interpolate_distance_nodes.setter
     def interpolate_distance_nodes(self, value):
         self._interpolate_distance_nodes = value
 
-
     @property
     def fov_shape_voxels(self) -> np.ndarray:
         return (self._fov_shape_phys // self.voxel_resolution).astype(int)
-        
 
     @property
     def end_phys(self) -> np.ndarray:
@@ -197,9 +216,9 @@ class SegmentationsConfig(BaseConfig):
         make sure that the fov shape is consistent accross the physical and
         voxel shape descriptions since both are user definable.
         """
-        assert all(np.equal(
-            self.fov_shape_phys % self.voxel_resolution, np.zeros([3])
-        )), "FOV dimensions are not a multiple of voxel dimensions: {} / {} = {}".format(
+        assert all(
+            np.equal(self.fov_shape_phys % self.voxel_resolution, np.zeros([3]))
+        ), "FOV dimensions are not a multiple of voxel dimensions: {} / {} = {}".format(
             self.fov_shape_phys,
             self.voxel_resolution,
             self.fov_shape_phys / self.voxel_resolution,
@@ -256,6 +275,7 @@ class SkeletonConfig(BaseConfig):
                 else:
                     ids.append([int(float(x)) for x in row[:2]])
         return [ids[i] + coords[i] for i in range(len(ids))]
+
 
 class Config(object):
     """A complete collection of configuration objects.
@@ -314,6 +334,7 @@ class Config(object):
     def to_toml(self, filename):
         with open(filename, "w") as tomlfile:
             tomlfile.write(str(self))
+
 
 class CachedLSDConfig(BaseConfig):
     """A complete collection of configuration objects.

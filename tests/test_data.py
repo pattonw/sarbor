@@ -24,7 +24,9 @@ class TestSarborReal(unittest.TestCase):
             return nodes
 
         nodes = get_skeleton_from_json(Path("test-data/27884/compact-detail.json"))
-        self.skel = Skeleton(Config.from_toml("test-data/27884/config.toml"))
+        config = Config()
+        config.from_toml(Path("test-data/27884/config.toml"))
+        self.skel = Skeleton(config)
         self.skel.input_nid_pid_x_y_z(nodes)
 
     def tearDown(self):
