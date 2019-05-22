@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import Tuple
 from pathlib import Path
 import numpy as np
 import queue
@@ -17,14 +17,16 @@ import time
 
 from multiprocessing import Process, Manager, Value
 
-logger = logging.getLogger('sarbor')
+logger = logging.getLogger("sarbor")
 
 
 class CachedLSDSource:
     def __init__(self, config_file, volume=None):
         self.config = CachedLSDConfig()
         self.config.from_toml(config_file)
-        self.sensitives = json.load(Path(Path.home(), self.config.sensitives_file).open("r"))
+        self.sensitives = json.load(
+            Path(Path.home(), self.config.sensitives_file).open("r")
+        )
 
         self.mongo_db = self.sensitives["mongo_db"]
         self.frag_db_host = self.sensitives["frag_db_host"]
@@ -32,7 +34,6 @@ class CachedLSDSource:
         self.edges_collection = self.sensitives["edges_collection"]
         self.fragments_file = self.sensitives["fragments_file"]
         self.fragments_dataset = self.sensitives["fragments_dataset"]
-
 
     def data_fetcher(
         self,
@@ -139,7 +140,7 @@ class CachedLSDSource:
             self.query_center_object(
                 daisy.Roi(roi_start[::-1], roi_shape[::-1]), threshold=0.3
             )
-            .data.transpose([2,1,0])
+            .data.transpose([2, 1, 0])
             .astype(np.uint8)
         )
 

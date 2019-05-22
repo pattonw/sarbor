@@ -5,7 +5,7 @@ import logging
 from .config import Config
 from .skeletons import Skeleton
 
-logger = logging.getLogger('sarbor')
+logger = logging.getLogger("sarbor")
 
 """Main module."""
 
@@ -22,9 +22,9 @@ def _process_skeleton(config: Config) -> Skeleton:
             config.skeleton.min_strahler, config.skeleton.max_strahler
         )
     if config.skeleton.resample:
-        processed_skel, new_nid_to_orig_map = skel.resample_segments()
+        processed_skel, _ = skel.resample_segments()
     else:
-        processed_skel, new_nid_to_orig_map = skel, {}
+        processed_skel, _ = skel, {}
     return processed_skel
 
 
@@ -46,7 +46,9 @@ def _process_results(skel: Skeleton, results) -> Skeleton:
     return skel
 
 
-def query_diluvian(config, model_weights_file, model_training_config, model_job_config, volume_file):
+def query_diluvian(
+    config, model_weights_file, model_training_config, model_job_config, volume_file
+):
     from .diluvian_source import DiluvianSource
     from diluvian.config import CONFIG
 
@@ -68,18 +70,18 @@ def query_diluvian(config, model_weights_file, model_training_config, model_job_
 
 def query_cached_lsd(config, cached_lsd_config_path):
     from .cached_lsd_source import CachedLSDSource
+
     processed_skel = _process_skeleton(config)
 
-    #"/groups/cardona/home/pattonw/Code/Scripts/error_detection/sensitives.json"
-    lsd_source = CachedLSDSource(
-        config_file=cached_lsd_config_path
-    )
+    # "/groups/cardona/home/pattonw/Code/Scripts/error_detection/sensitives.json"
+    lsd_source = CachedLSDSource(config_file=cached_lsd_config_path)
 
     results = lsd_source.segment_skeleton(processed_skel, 32)
 
     processed_skel = _process_results(processed_skel, results)
 
     processed_skel.save_data_for_CATMAID()
+
 
 def load_volumes(volume_files, in_memory=False, name_regex=None):
     """Load HDF5 volumes specified in a TOML description file.
@@ -99,8 +101,10 @@ def load_volumes(volume_files, in_memory=False, name_regex=None):
     from diluvian.volumes import HDF5Volume
     from diluvian.volumes import ImageStackVolume
     from diluvian.volumes import N5Volume
+    import os
+    import re
 
-    print('Loading volumes...')
+    print("Loading volumes...")
     if volume_files:
         volumes = {}
         for volume_file in volume_files:
@@ -108,15 +112,17 @@ def load_volumes(volume_files, in_memory=False, name_regex=None):
             volumes.update(ImageStackVolume.from_toml(volume_file))
             volumes.update(N5Volume.from_toml(volume_file))
     else:
-        volumes = HDF5Volume.from_toml(os.path.join(os.path.dirname(__file__), 'conf', 'cremi_datasets.toml'))
+        volumes = HDF5Volume.from_toml(
+            os.path.join(os.path.dirname(__file__), "conf", "cremi_datasets.toml")
+        )
 
     if name_regex is not None:
         name_regex = re.compile(name_regex)
-        volumes = {k: v for k, v in six.iteritems(volumes) if name_regex.match(k)}
+        volumes = {k: v for k, v in volumes.items() if name_regex.match(k)}
 
     if in_memory:
-        print('Copying volumes to memory...')
-        volumes = {k: v.to_memory_volume() for k, v in six.iteritems(volumes)}
+        print("Copying volumes to memory...")
+        volumes = {k: v.to_memory_volume() for k, v in volumes.items()}
 
-    print('Done.')
+    print("Done.")
     return volumes
