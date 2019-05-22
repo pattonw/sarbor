@@ -12,7 +12,7 @@ from .config import Config, SkeletonConfig
 
 from typing import Tuple, Dict, List, Any
 
-logger = logging.getLogger('sarbor')
+logger = logging.getLogger("sarbor")
 
 Bounds = Tuple[np.ndarray, np.ndarray]
 
@@ -30,7 +30,6 @@ class Skeleton:
         self.filled = {}
 
     def clone(self):
-        logger.warning("deprecated: This function only copies the config!")
         new_skeleton = Skeleton(self._config)
         return new_skeleton
 
@@ -172,22 +171,25 @@ class Skeleton:
         node = self.nodes[nid]
 
         if not all(self.seg.downsample_factor == np.ones([3])):
-            mask = ((
-                (255 * mask)
-                .reshape(
-                    [
-                        self.seg.fov_shape_voxels[0],
-                        mask.shape[0] // self.seg.fov_shape_voxels[0],
-                        self.seg.fov_shape_voxels[1],
-                        mask.shape[1] // self.seg.fov_shape_voxels[1],
-                        self.seg.fov_shape_voxels[2],
-                        mask.shape[2] // self.seg.fov_shape_voxels[2],
-                    ]
+            mask = (
+                (
+                    (255 * mask)
+                    .reshape(
+                        [
+                            self.seg.fov_shape_voxels[0],
+                            mask.shape[0] // self.seg.fov_shape_voxels[0],
+                            self.seg.fov_shape_voxels[1],
+                            mask.shape[1] // self.seg.fov_shape_voxels[1],
+                            self.seg.fov_shape_voxels[2],
+                            mask.shape[2] // self.seg.fov_shape_voxels[2],
+                        ]
+                    )
+                    .mean(5)
+                    .mean(3)
+                    .mean(1)
                 )
-                .mean(5)
-                .mean(3)
-                .mean(1)
-            ) > 127).astype(np.uint8)
+                > 127
+            ).astype(np.uint8)
         node.value.mask = mask
         self.filled[nid] = True
 
@@ -273,9 +275,12 @@ class Skeleton:
                         (node.key, node.parent_key), [None, None]
                     )[1],
                     branch_rankings[node.key][1],
-                    branch_rankings[node.key][0][0] * self._config.segmentations.voxel_resolution[0],
-                    branch_rankings[node.key][0][1] * self._config.segmentations.voxel_resolution[1],
-                    branch_rankings[node.key][0][2] * self._config.segmentations.voxel_resolution[2],
+                    branch_rankings[node.key][0][0]
+                    * self._config.segmentations.voxel_resolution[0],
+                    branch_rankings[node.key][0][1]
+                    * self._config.segmentations.voxel_resolution[1],
+                    branch_rankings[node.key][0][2]
+                    * self._config.segmentations.voxel_resolution[2],
                 )
             )
         data = np.array(ranking_data)
@@ -443,7 +448,6 @@ class Skeleton:
         # store mapping from new node ids back to closest original node ids
         new_nid_to_orig_map = {}
 
-
         # get each straight segment
         for segment in self.get_segments():
 
@@ -469,14 +473,19 @@ class Skeleton:
                     node = segment[i]
                     if closest is None:
                         closest = node
-                    elif np.linalg.norm(node.value.center - [x,y,z]) < np.linalg.norm(closest.value.center - [x,y,z]):
+                    elif np.linalg.norm(node.value.center - [x, y, z]) < np.linalg.norm(
+                        closest.value.center - [x, y, z]
+                    ):
                         closest = node
                 new_nid_to_orig_map[nid] = closest.key
-                
 
             # save tail node for future referece if it is a branch
             if len(segment[-1].children) > 1:
-                branch_points[segment[-1].key] = new_interpolated_nodes[-1] if len(new_interpolated_nodes) > 0 else root_key
+                branch_points[segment[-1].key] = (
+                    new_interpolated_nodes[-1]
+                    if len(new_interpolated_nodes) > 0
+                    else root_key
+                )
 
             new_tree_nodes = new_tree_nodes + new_interpolated_nodes
 
@@ -489,8 +498,11 @@ class Skeleton:
         def get_smoothed(coords, sigma_fraction):
             max_dist = 0
             for i in range(1, len(coords)):
-                max_dist = max(np.linalg.norm(np.array(coords[i]) - np.array(coords[i-1])), max_dist)
-            steps = max(2 * len(coords) * max_dist // self.config.resample_delta, 10)
+                max_dist = max(
+                    np.linalg.norm(np.array(coords[i]) - np.array(coords[i - 1])),
+                    max_dist,
+                )
+            steps = int(max(10 * len(coords) * max_dist // self.config.resample_delta, 10))
             x_y_z = list(zip(*coords))
             t = np.linspace(0, 1, len(coords))
             t2 = np.linspace(0, 1, steps)
@@ -534,9 +546,9 @@ class Skeleton:
                     break
 
                 dist = np.linalg.norm(np.array(coord) - np.array(previous))
-                if dist < delta:
+                if dist < delta * 0.9:
                     continue
-                elif dist > 2 * delta:
+                elif dist > 1.5 * delta:
                     raise ValueError(
                         "your resampling has too few steps to support a delta this small!"
                     )
@@ -554,9 +566,7 @@ class Skeleton:
         coords = [node.value.center for node in nodes]
 
         # contains both end points
-        smoothed_coords = list(
-            get_smoothed(coords, self.config.resample_sigma)
-        )
+        smoothed_coords = list(get_smoothed(coords, self.config.resample_sigma))
 
         # does not contain root
         downsampled_coords = list(
