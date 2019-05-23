@@ -9,6 +9,7 @@ from pathlib import Path
 from .arbors import SpatialArbor, Node
 from .segmentations import SegmentationSource
 from .config import Config, SkeletonConfig
+from .meshes import octree_to_sparse_vtk_volume, contour_sparse_vtk_volume, write_to_stl
 
 from typing import Tuple, Dict, List, Any
 
@@ -223,6 +224,8 @@ class Skeleton:
             )
         if self.config.save_segmentations:
             self.seg.save_data_for_CATMAID(self.config.output_file_base)
+        if self.config.save_meshes:
+            self.save_mesh(self.config.output_file_base + "/mesh.stl")
         if self.config.save_masks:
             nid_mask_map = {node.key: node.value.mask for node in self.get_nodes()}
             pickle.dump(
@@ -285,6 +288,12 @@ class Skeleton:
             )
         data = np.array(ranking_data)
         np.savetxt("{}.csv".format(output_file), data, delimiter=",", fmt="%s")
+
+    def save_mesh(self, output_file):
+        octree = self.seg.segmentation_views
+        vtk_volume = octree_to_sparse_vtk_volume(octree)
+        vtk_contour = contour_sparse_vtk_volume(vtk_volume, 0.5)
+        write_to_stl(vtk_contour, output_file)
 
     # ----Editing Skeleton Data-----
 
@@ -502,7 +511,9 @@ class Skeleton:
                     np.linalg.norm(np.array(coords[i]) - np.array(coords[i - 1])),
                     max_dist,
                 )
-            steps = int(max(10 * len(coords) * max_dist // self.config.resample_delta, 10))
+            steps = int(
+                max(10 * len(coords) * max_dist // self.config.resample_delta, 10)
+            )
             x_y_z = list(zip(*coords))
             t = np.linspace(0, 1, len(coords))
             t2 = np.linspace(0, 1, steps)

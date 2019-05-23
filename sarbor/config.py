@@ -245,6 +245,7 @@ class SkeletonConfig(BaseConfig):
         self.save_nodes = bool(settings.get("save_nodes", True))
         self.save_rankings = bool(settings.get("save_rankings", True))
         self.save_segmentations = bool(settings.get("save_segmentations", True))
+        self.save_meshes = bool(settings.get("save_meshes", True))
         self.save_masks = bool(settings.get("save_masks", True))
         self.save_config = bool(settings.get("save_config", True))
         self.use_consensus = bool(settings.get("use_consensus", False))
