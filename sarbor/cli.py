@@ -3,15 +3,16 @@ from .config import Config
 import logging
 import sys
 
-logger = logging.getLogger('sarbor')
+logger = logging.getLogger("sarbor")
 logger.setLevel(logging.INFO)
 console = logging.StreamHandler(sys.stdout)
 console.setLevel(logging.INFO)
-formatter = logging.Formatter('%(name)s: (%(levelname)s) %(message)s')
+formatter = logging.Formatter("%(name)s: (%(levelname)s) %(message)s")
 console.setFormatter(formatter)
 logger.addHandler(console)
 
 pass_config = click.make_pass_decorator(Config, ensure=True)
+
 
 @click.group()
 @click.option(
@@ -62,7 +63,9 @@ def cli(
 def cached_lsd(config, cached_lsd_config):
     from .sarbor import query_cached_lsd
 
-    logger.warning("Starting a cached lsd job with config: {}".format(cached_lsd_config))
+    logger.warning(
+        "Starting a cached lsd job with config: {}".format(cached_lsd_config)
+    )
 
     query_cached_lsd(config, cached_lsd_config)
 
