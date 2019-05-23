@@ -291,7 +291,9 @@ class Skeleton:
 
     def save_mesh(self, output_file):
         octree = self.seg.segmentation_views
-        vtk_volume = octree_to_sparse_vtk_volume(octree)
+        vtk_volume = octree_to_sparse_vtk_volume(
+            octree, resolution=self.seg.voxel_resolution
+        )
         vtk_contour = contour_sparse_vtk_volume(vtk_volume, 0.5)
         write_to_stl(vtk_contour, output_file)
 
