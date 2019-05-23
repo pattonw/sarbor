@@ -9,6 +9,7 @@ import numpy as np
 import pytoml as toml
 
 from typing import Tuple
+from pathlib import Path
 
 
 class BaseConfig(object):
@@ -326,13 +327,13 @@ class Config(object):
         """
         settings = []
         for filename in filenames:
-            with filename.open("rb") as fin:
+            with Path(filename).open("rb") as fin:
                 settings.append(toml.load(fin))
 
         self.__init__(settings)
 
     def to_toml(self, filename):
-        with filename.open("w") as tomlfile:
+        with Path(filename).open("w") as tomlfile:
             tomlfile.write(str(self))
 
 
@@ -384,11 +385,11 @@ class CachedLSDConfig(BaseConfig):
         """
         settings = []
         for filename in filenames:
-            with filename.open("rb") as fin:
+            with Path(filename).open("rb") as fin:
                 settings.append(toml.load(fin))
 
         self.__init__(settings)
 
     def to_toml(self, filename):
-        with filename.open("w") as tomlfile:
+        with Path(filename).open("w") as tomlfile:
             tomlfile.write(str(self))
