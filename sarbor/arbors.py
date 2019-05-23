@@ -3,6 +3,8 @@ import numpy as np
 from typing import Tuple, Dict, Optional, Any, List
 import logging
 
+logger = logging.getLogger('sarbor')
+
 Bounds = Tuple[np.ndarray, np.ndarray]
 
 
@@ -367,7 +369,7 @@ class NodeData:
         if self.center is None:
             self.data["center"] = center
         else:
-            logging.debug(
+            logger.debug(
                 "Overriding the center {} with {}".format(self.center, center)
             )
 

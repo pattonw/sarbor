@@ -24,14 +24,16 @@ class TestSarborReal(unittest.TestCase):
             return nodes
 
         nodes = get_skeleton_from_json(Path("test-data/27884/compact-detail.json"))
-        self.skel = Skeleton(Config.from_toml("test-data/27884/config.toml"))
+        config = Config()
+        config.from_toml(Path("test-data/27884/config.toml"))
+        self.skel = Skeleton(config)
         self.skel.input_nid_pid_x_y_z(nodes)
 
     def tearDown(self):
         """Tear down test fixtures, if any."""
 
     def test_resample(self):
-        sampled_skel = self.skel.resample_segments()
+        sampled_skel, original_node_mapping = self.skel.resample_segments()
         # Test leaves/branches/root didn't move
         og_interesting = [
             node

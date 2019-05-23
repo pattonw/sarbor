@@ -12,6 +12,7 @@ from .config import Config, SkeletonConfig
 
 from typing import Tuple, Dict, List, Any
 
+logger = logging.getLogger("sarbor")
 
 Bounds = Tuple[np.ndarray, np.ndarray]
 
@@ -22,21 +23,20 @@ class Skeleton:
             config = Config()
         # Data sources
         self._arbor = SpatialArbor()
-        self._seg = SegmentationSource(config.segmentations_config)
+        self._seg = SegmentationSource(config.segmentations)
         self._config = config
 
         # floodfilling specific properties
         self.filled = {}
 
     def clone(self):
-        logging.warning("deprecated: This function only copies the config!")
         new_skeleton = Skeleton(self._config)
         return new_skeleton
 
     # -----PROPERTIES-----
     @property
     def config(self) -> SkeletonConfig:
-        return self._config.skeleton_config
+        return self._config.skeleton
 
     @property
     def nodes(self) -> Dict[int, Node]:
@@ -150,10 +150,10 @@ class Skeleton:
                 parent.add_child(nodes[nid])
         if len(roots) == 1:
             self.arbor.build_from_root(roots[0])
-            logging.info("No nodes lost!")
+            logger.info("No nodes lost!")
         else:
             sizes = [len(list(node.traverse())) for node in roots]
-            logging.warning(
+            logger.warning(
                 "{} nodes excluded from tree!".format(sum(sizes) - max(sizes))
             )
             self.arbor.build_from_root(roots[sizes.index(max(sizes))])
@@ -170,6 +170,26 @@ class Skeleton:
         """
         node = self.nodes[nid]
 
+        if not all(self.seg.downsample_factor == np.ones([3])):
+            mask = (
+                (
+                    (255 * mask)
+                    .reshape(
+                        [
+                            self.seg.fov_shape_voxels[0],
+                            mask.shape[0] // self.seg.fov_shape_voxels[0],
+                            self.seg.fov_shape_voxels[1],
+                            mask.shape[1] // self.seg.fov_shape_voxels[1],
+                            self.seg.fov_shape_voxels[2],
+                            mask.shape[2] // self.seg.fov_shape_voxels[2],
+                        ]
+                    )
+                    .mean(5)
+                    .mean(3)
+                    .mean(1)
+                )
+                > 127
+            ).astype(np.uint8)
         node.value.mask = mask
         self.filled[nid] = True
 
@@ -202,7 +222,7 @@ class Skeleton:
                 consensus=self.config.use_consensus,
             )
         if self.config.save_segmentations:
-            self.seg.save_data(self.config.output_file_base)
+            self.seg.save_data_for_CATMAID(self.config.output_file_base)
         if self.config.save_masks:
             nid_mask_map = {node.key: node.value.mask for node in self.get_nodes()}
             pickle.dump(
@@ -217,7 +237,7 @@ class Skeleton:
                 nodes = pickle.load(f)
             self.input_nid_pid_x_y_z(nodes)
         except FileNotFoundError:
-            logging.warning("Node file not found")
+            logger.warning("Node file not found")
 
         try:
             with open(output_file_base + "/masks.obj", "rb") as f:
@@ -225,12 +245,12 @@ class Skeleton:
             for nid, mask in nid_mask_map.items():
                 self.nodes[nid].value.mask = mask
         except FileNotFoundError:
-            logging.warning("Masks not found")
+            logger.warning("Masks not found")
 
         try:
             self._config.from_toml(output_file_base + "/config.toml")
         except FileNotFoundError:
-            logging.warning("Config file is necessary to get reliable results")
+            logger.warning("Config file is necessary to get reliable results")
 
     def save_rankings(self, output_file="ranking_data", consensus=False):
         connectivity_rankings = self.get_node_connectivity()
@@ -255,9 +275,12 @@ class Skeleton:
                         (node.key, node.parent_key), [None, None]
                     )[1],
                     branch_rankings[node.key][1],
-                    branch_rankings[node.key][0][0],
-                    branch_rankings[node.key][0][1],
-                    branch_rankings[node.key][0][2],
+                    branch_rankings[node.key][0][0]
+                    * self._config.segmentations.voxel_resolution[0],
+                    branch_rankings[node.key][0][1]
+                    * self._config.segmentations.voxel_resolution[1],
+                    branch_rankings[node.key][0][2]
+                    * self._config.segmentations.voxel_resolution[2],
                 )
             )
         data = np.array(ranking_data)
@@ -422,6 +445,9 @@ class Skeleton:
         new_tree_nodes = []
         # new nodes will need new nids/pids thus we will reassign all nids starting at 0
         new_node_id = 0
+        # store mapping from new node ids back to closest original node ids
+        new_nid_to_orig_map = {}
+
         # get each straight segment
         for segment in self.get_segments():
 
@@ -432,6 +458,7 @@ class Skeleton:
                 new_node_id += 1
                 new_tree_nodes.append(root)
                 branch_points[segment[0].key] = root
+                new_nid_to_orig_map[0] = segment[0].key
 
             # get interpolated nodes. includes tail but not root
             root_key = branch_points[segment[0].key]
@@ -439,19 +466,43 @@ class Skeleton:
                 segment, new_node_id, root_key
             )
 
+            last = 0
+            for nid, pid, x, y, z in new_interpolated_nodes:
+                closest = None
+                for i in range(last, len(segment)):
+                    node = segment[i]
+                    if closest is None:
+                        closest = node
+                    elif np.linalg.norm(node.value.center - [x, y, z]) < np.linalg.norm(
+                        closest.value.center - [x, y, z]
+                    ):
+                        closest = node
+                new_nid_to_orig_map[nid] = closest.key
+
             # save tail node for future referece if it is a branch
             if len(segment[-1].children) > 1:
-                branch_points[segment[-1].key] = new_interpolated_nodes[-1]
+                branch_points[segment[-1].key] = (
+                    new_interpolated_nodes[-1]
+                    if len(new_interpolated_nodes) > 0
+                    else root_key
+                )
 
             new_tree_nodes = new_tree_nodes + new_interpolated_nodes
 
         # create a new tree with the same config and input the new nodes
         new_skeleton = self.clone()
         new_skeleton.input_nid_pid_x_y_z(new_tree_nodes)
-        return new_skeleton
+        return new_skeleton, new_nid_to_orig_map
 
     def resample_segment(self, nodes, new_node_id, root):
-        def get_smoothed(coords, steps, sigma_fraction):
+        def get_smoothed(coords, sigma_fraction):
+            max_dist = 0
+            for i in range(1, len(coords)):
+                max_dist = max(
+                    np.linalg.norm(np.array(coords[i]) - np.array(coords[i - 1])),
+                    max_dist,
+                )
+            steps = int(max(10 * len(coords) * max_dist // self.config.resample_delta, 10))
             x_y_z = list(zip(*coords))
             t = np.linspace(0, 1, len(coords))
             t2 = np.linspace(0, 1, steps)
@@ -460,26 +511,29 @@ class Skeleton:
             x_y_z_2 = list(map(lambda x: np.interp(t2, t, x), x_y_z))
 
             # gaussian smooth points allong each axis
-            x_y_z_3 = list(
-                map(
-                    lambda x: gaussian_filter1d(
-                        x, steps * sigma_fraction, mode="nearest"
-                    ),
-                    x_y_z_2,
+            if self.config.smoothing == "gaussian":
+                x_y_z_3 = list(
+                    map(
+                        lambda x: gaussian_filter1d(
+                            x, steps * sigma_fraction, mode="nearest"
+                        ),
+                        x_y_z_2,
+                    )
                 )
-            )
 
-            # gaussian smooth moves end points, thus we need to
-            # linearly interpolate between original ends and gaussian smoothed ends
-            t = np.linspace(0, 1, 2)
-            t2 = np.linspace(0, 1, steps)
-            start = [[x_y_z[i][0], x_y_z_3[i][0]] for i in range(3)]
-            end = [[x_y_z_3[i][-1], x_y_z[i][-1]] for i in range(3)]
-            start = list(map(lambda x: np.interp(t2, t, x), start))
-            end = list(map(lambda x: np.interp(t2, t, x), end))
-            x_y_z_3 = list(
-                zip(*(list(zip(*start)) + list(zip(*x_y_z_3)) + list(zip(*end))))
-            )
+                # gaussian smooth moves end points, thus we need to
+                # linearly interpolate between original ends and gaussian smoothed ends
+                t = np.linspace(0, 1, 2)
+                t2 = np.linspace(0, 1, steps)
+                start = [[x_y_z[i][0], x_y_z_3[i][0]] for i in range(3)]
+                end = [[x_y_z_3[i][-1], x_y_z[i][-1]] for i in range(3)]
+                start = list(map(lambda x: np.interp(t2, t, x), start))
+                end = list(map(lambda x: np.interp(t2, t, x), end))
+                x_y_z_3 = list(
+                    zip(*(list(zip(*start)) + list(zip(*x_y_z_3)) + list(zip(*end))))
+                )
+            elif self.config.smoothing == "none":
+                x_y_z_3 = x_y_z_2
 
             return zip(*x_y_z_3)
 
@@ -492,9 +546,9 @@ class Skeleton:
                     break
 
                 dist = np.linalg.norm(np.array(coord) - np.array(previous))
-                if dist < delta:
+                if dist < delta * 0.9:
                     continue
-                elif dist > 2 * delta:
+                elif dist > 1.5 * delta:
                     raise ValueError(
                         "your resampling has too few steps to support a delta this small!"
                     )
@@ -512,9 +566,7 @@ class Skeleton:
         coords = [node.value.center for node in nodes]
 
         # contains both end points
-        smoothed_coords = list(
-            get_smoothed(coords, self.config.resample_steps, self.config.resample_sigma)
-        )
+        smoothed_coords = list(get_smoothed(coords, self.config.resample_sigma))
 
         # does not contain root
         downsampled_coords = list(
@@ -554,7 +606,7 @@ class Skeleton:
         keep_nodes = keep_root.traverse(ignore=[branch_chop[1]])
         new_skeleton = self.clone()
         new_skeleton.input_nodes(keep_nodes)
-        logging.debug(
+        logger.debug(
             "Original skeleton size {} vs chopped skeleton size {}".format(
                 len(self.get_nodes()), len(new_skeleton.get_nodes())
             )
@@ -684,9 +736,9 @@ class Skeleton:
             else:
                 nid_score_map[node.key] = (direction, mag)
             if any(np.isnan(x) for x in direction):
-                logging.debug(mask)
-                logging.debug(direction)
-                logging.debug(mag)
+                logger.debug(mask)
+                logger.debug(direction)
+                logger.debug(mag)
                 raise ValueError("Direction is NAN!")
 
         if consensus and not key == "location":
@@ -700,7 +752,7 @@ class Skeleton:
         Connectivity score is relatively arbitrary with the property
         that 1 means well connected, 0 means not connected.
         """
-        logging.debug("starting node connectivity")
+        logger.debug("starting node connectivity")
         nid_score_map = {}
         for node in self.get_nodes():
             if node.parent is not None:
@@ -720,7 +772,7 @@ class Skeleton:
         roi_b = self.seg.get_roi(node_b.value.center)
         roi_ab = (np.maximum(roi_a[0], roi_b[0]), np.minimum(roi_a[1], roi_b[1]))
         if any(roi_ab[0] >= roi_ab[1]):
-            logging.warn(
+            logger.warn(
                 "Nodes {} and {} do not have overlapping masks!".format(
                     node_a.key, node_b.key
                 )
@@ -737,7 +789,7 @@ class Skeleton:
                 (node_a.value.mask[a_slices] + node_b.value.mask[b_slices] == 2).sum()
             ) / (np.prod((roi_ab[1] - roi_ab[0]) / self.seg.voxel_resolution))
         except AssertionError as e:
-            logging.warn(
+            logger.warn(
                 "Node ({}, {}) connection failed due to: ".format(
                     node_a.key, node_b.key, e
                 )
@@ -800,7 +852,7 @@ class Skeleton:
         change_mag = change_mag / (len(x) * len(y) * len(z) / 4)
 
         if any(np.isnan(x) for x in change_direction):
-            logging.debug("nan")
+            logger.debug("nan")
 
         return (change_direction, change_mag)
 
@@ -874,7 +926,7 @@ class Skeleton:
                 nodes.append(node)
             else:
                 skipped += 1
-        logging.debug(
+        logger.debug(
             "{}/{} nodes recalculated".format(len(nodes), skipped + len(nodes))
         )
         small_radius_scores = self.get_nid_branch_score_map(
@@ -922,7 +974,7 @@ class Skeleton:
         self.seg.create_octrees_from_nodes(nodes=large_radius)
         t2 = time.time()
         if DEBUG == "TIME":
-            logging.debug(
+            logger.debug(
                 "\tCreating Octrees took {} seconds, {} per node with {} nodes".format(
                     round(t2 - t1),
                     round((t2 - t1) / len(large_radius), 1),
@@ -939,7 +991,7 @@ class Skeleton:
         )
         t2 = time.time()
         if DEBUG == "TIME":
-            logging.debug(
+            logger.debug(
                 "\tCalculating scores took {} seconds, {} per node with {} nodes".format(
                     round(t2 - t1),
                     round((t2 - t1) / len(close_nodes), 1),

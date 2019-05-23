@@ -1,12 +1,14 @@
 import numpy as np
-from typing import Dict, Any, List, Tuple, Iterable
+from typing import Any, List, Tuple, Iterable
 from pathlib import Path
-import pickle
 import logging
+import pyn5
 
 from .octrees import OctreeVolume
 from .config import SegmentationsConfig
 from .arbors import Node
+
+logger = logging.getLogger("sarbor")
 
 
 class SegmentationSource:
@@ -19,14 +21,9 @@ class SegmentationSource:
         How many times each voxel was contained in a nodes field of view during segmentation
     3) distances (OctreeVolume[float32]):
         Minimum distance from each voxel to a sample point during segmentation
-
-    segmentation_counts and views are stored seperately since storing their quotient as a float
-    would be a lot more memory intense and calculating values on the fly is trivial.
-    For a speed up consider using extra memory to store them together in ram
     """
 
-    def __init__(self, config: SegmentationsConfig, constants: Dict[str, Any] = {}):
-        self._constants = constants
+    def __init__(self, config: SegmentationsConfig):
         self._sphere = None
 
         # Octrees
@@ -243,8 +240,8 @@ class SegmentationSource:
 
     def save_data(self, folder_path: Path):
         """
-        Save all the data necessary to rebuild this class.
-        OctreeVolumes are written to n5 datasets, and constants are pickled
+        Save all the data necessary to rebuild retrieve
+        any segmentation from this class
         """
         datasets = {
             "segmentation_views": self.segmentation_views,
@@ -252,13 +249,36 @@ class SegmentationSource:
             "distances": self.distances,
         }
         for name, data in datasets.items():
-            logging.debug("Saving {} to n5!".format(name))
-            logging.debug("Num leaves = {}".format(len(list(data.iter_leaves()))))
-            data.write_to_n5(folder_path, name)
-        pickle.dump(self._constants, Path(folder_path, "constants.obj").open("wb"))
+            logger.debug("Saving {} to n5!".format(name))
+            logger.debug("Num leaves = {}".format(len(list(data.iter_leaves()))))
+            data.write_to_n5(folder_path + "/segmentations.n5", name)
+
+    def save_data_for_CATMAID(self, folder_path: Path):
+        """
+        Save the segmentation confidence score
+        """
+        pyn5.create_dataset(
+            folder_path + "/segmentations.n5",
+            "confidence",
+            [int(x) for x in self.end_voxel],
+            [int(x) for x in self.leaf_shape_voxels],
+            "UINT8",
+        )
+        dataset = pyn5.open(folder_path + "/segmentations.n5", "confidence")
+        for leaf in self.distances.iter_leaves():
+            pyn5.write(
+                dataset,
+                leaf.bounds,
+                (
+                    255
+                    * self._view_weighted_mask(
+                        tuple(map(slice, leaf.bounds[0], leaf.bounds[1]))
+                    )
+                ).astype(np.uint8),
+                np.uint8,
+            )
 
     def load_data(self, folder_path: Path):
-        self._constants = pickle.load(Path(folder_path, "constants.obj").open("rb"))
         self._segmentation_views = OctreeVolume.read_from_n5(
             folder_path, "segmentation_views", self.shape_voxel
         )
@@ -269,14 +289,12 @@ class SegmentationSource:
             folder_path, "distances", self.shape_voxel
         )
 
-    def extract_data(self):
-        return self._constants
-
     def transform_bounds(self, bounds: Tuple[np.ndarray, np.ndarray]) -> Tuple[slice]:
         """
         Takes bounds in tuple format ((a,b,c), (A,B,C)) and converts them into slices
         [a:A, b:B, c:C] in voxel space
         """
+        # TODO: move assertions into a proper unittest
         assert all(
             bounds[0] < bounds[1]
         ), "Resulting shape must be positive on all axes"
@@ -301,6 +319,7 @@ class SegmentationSource:
         block_offset = (fov_shape // voxel_shape) // 2
         start = center_block - block_offset * voxel_shape
         end = center_block + (block_offset + 1) * voxel_shape
+        # TODO: put this is a test file
         assert all(
             end - start == fov_shape
         ), "ROI does not cover the expected area: {} vs {}".format(
@@ -373,7 +392,7 @@ class SegmentationSource:
 
     def _distance_mask(self, bounds: List[slice]) -> np.ndarray:
         distances = self.distances[bounds]
-        logging.debug(
+        logger.debug(
             "Percent of distances seen that are infinite is: {}".format(
                 np.isinf(distances).sum() / np.prod(distances.shape)
             )

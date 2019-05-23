@@ -17,9 +17,9 @@ def parse_requirements(filename):
     return [line for line in lines if line and not line.startswith("#")]
 
 
-requirements = parse_requirements("requirements/dev.txt")
+requirements = parse_requirements("requirements/prod.txt")
 
-setup_requirements = parse_requirements("requirements/dev.txt")
+setup_requirements = []
 
 test_requirements = parse_requirements("requirements/dev.txt")
 
@@ -49,4 +49,8 @@ setup(
     url="https://github.com/pattonw/sarbor",
     version="0.1.0",
     zip_safe=False,
+    entry_points="""
+        [console_scripts]
+        sarbor-error-detector=sarbor.cli:cli
+    """,
 )
