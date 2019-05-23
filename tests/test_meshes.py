@@ -14,6 +14,8 @@ from sarbor.meshes import (
 )
 from sarbor.octrees import OctreeVolume
 
+from pathlib import Path
+
 
 class TestMeshes(unittest.TestCase):
     """Tests for meshes module."""
@@ -44,7 +46,9 @@ class TestMeshes(unittest.TestCase):
         self.oct_volume = block
 
     def tearDown(self):
-        """Tear down test fixtures, if any."""
+        test_mesh = Path("test.stl")
+        if test_mesh.exists():
+            test_mesh.unlink()
 
     def test_countouring(self):
         vtk_volume = octree_to_sparse_vtk_volume(self.oct_volume, cutoff=0.5)
