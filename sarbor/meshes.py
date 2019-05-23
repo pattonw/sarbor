@@ -138,6 +138,14 @@ def contour_sparse_vtk_volume(volume, cutoff):
     return Marching
 
 
+def decimate_mesh(contour, target_reduction=0.1):
+    decimate = vtk.vtkDecimatePro()
+    decimate.SetInputData(contour.GetOutput())
+    decimate.SetTargetReduction(target_reduction)
+    decimate.Update()
+    return decimate
+
+
 def write_to_stl(vtk_volume, filename):
     # Write a volume to a .stl file
     stlWriter = vtk.vtkSTLWriter()

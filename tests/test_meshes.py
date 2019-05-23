@@ -10,6 +10,7 @@ from sarbor.meshes import (
     contour_sparse_vtk_volume,
     write_to_stl,
     read_from_stl,
+    decimate_mesh,
     # visualize_mesh,
 )
 from sarbor.octrees import OctreeVolume
@@ -53,7 +54,9 @@ class TestMeshes(unittest.TestCase):
     def test_countouring(self):
         vtk_volume = octree_to_sparse_vtk_volume(self.oct_volume, cutoff=0.5)
         vtk_contour = contour_sparse_vtk_volume(vtk_volume, cutoff=0.5)
-        write_to_stl(vtk_contour, "test.stl")
+        vtk_contour_decimated = decimate_mesh(vtk_contour, target_reduction=0.01)
+        write_to_stl(vtk_contour_decimated, "test.stl")
         vtk_contour_from_file = read_from_stl("test.stl")
         # visualize_mesh(vtk_contour_from_file)
+        # visualize_mesh(vtk_contour)
         self.assertIsNotNone(vtk_contour_from_file)

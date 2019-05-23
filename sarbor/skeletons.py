@@ -9,7 +9,12 @@ from pathlib import Path
 from .arbors import SpatialArbor, Node
 from .segmentations import SegmentationSource
 from .config import Config, SkeletonConfig
-from .meshes import octree_to_sparse_vtk_volume, contour_sparse_vtk_volume, write_to_stl
+from .meshes import (
+    octree_to_sparse_vtk_volume,
+    contour_sparse_vtk_volume,
+    write_to_stl,
+    decimate_mesh,
+)
 
 from typing import Tuple, Dict, List, Any
 
@@ -295,7 +300,8 @@ class Skeleton:
             octree, resolution=self.seg.voxel_resolution
         )
         vtk_contour = contour_sparse_vtk_volume(vtk_volume, 0.5)
-        write_to_stl(vtk_contour, output_file)
+        vtk_contour_smaller = decimate_mesh(vtk_contour)
+        write_to_stl(vtk_contour_smaller, output_file)
 
     # ----Editing Skeleton Data-----
 
