@@ -295,7 +295,7 @@ class Skeleton:
         np.savetxt("{}.csv".format(output_file), data, delimiter=",", fmt="%s")
 
     def save_mesh(self, output_file):
-        octree = self.seg.segmentation_views
+        octree = self.seg.segmentation_counts
         vtk_volume = octree_to_sparse_vtk_volume(
             octree, resolution=self.seg.voxel_resolution
         )
