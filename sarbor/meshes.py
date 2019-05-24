@@ -144,7 +144,7 @@ def decimate_mesh(contour, target_reduction=0.1):
     decimate.SetTargetReduction(target_reduction)
     decimate.Update()
     return decimate
-
+  
 
 def write_to_stl(vtk_volume, filename):
     # Write a volume to a .stl file

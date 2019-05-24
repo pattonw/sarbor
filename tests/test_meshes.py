@@ -4,6 +4,7 @@
 
 import unittest
 import numpy as np
+from pathlib import Path
 
 from sarbor.meshes import (
     octree_to_sparse_vtk_volume,
@@ -14,8 +15,6 @@ from sarbor.meshes import (
     # visualize_mesh,
 )
 from sarbor.octrees import OctreeVolume
-
-from pathlib import Path
 
 
 class TestMeshes(unittest.TestCase):
