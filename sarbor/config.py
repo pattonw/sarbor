@@ -253,7 +253,6 @@ class SkeletonConfig(BaseConfig):
         self.resample = bool(settings.get("resample", True))
         self.smoothing = str(settings.get("smoothing", "none"))
         self.resample_delta = int(settings.get("resample_delta", 50))
-        self.resample_steps = int(settings.get("resample_steps", 2000))
         self.resample_sigma = float(settings.get("resample_sigma", 0.05))
 
         self.strahler_filter = bool(settings.get("strahler_filter", True))
