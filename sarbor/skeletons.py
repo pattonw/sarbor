@@ -281,7 +281,7 @@ class Skeleton:
                     * self._config.segmentations.voxel_resolution[2],
                 )
             )
-        pickle.dump(ranking_data, "{}.obj".format(output_file))
+        pickle.dump(ranking_data, open("{}.obj".format(output_file), "wb"))
 
     def save_mesh(self, output_file):
         octree = self.seg.segmentation_counts
