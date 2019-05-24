@@ -263,17 +263,7 @@ class Skeleton:
     def save_rankings(self, output_file="ranking_data", consensus=False):
         connectivity_rankings = self.get_node_connectivity()
         branch_rankings = self.get_nid_branch_score_map(consensus=consensus)
-        ranking_data = [
-            (
-                "nid",
-                "pid",
-                "connectivity_score",
-                "branch_score",
-                "branch_dx",
-                "branch_dy",
-                "branch_dz",
-            )
-        ]
+        ranking_data = []
         for node in self.get_nodes():
             ranking_data.append(
                 (
@@ -291,8 +281,7 @@ class Skeleton:
                     * self._config.segmentations.voxel_resolution[2],
                 )
             )
-        data = np.array(ranking_data)
-        np.savetxt("{}.csv".format(output_file), data, delimiter=",", fmt="%s")
+        pickle.dump(ranking_data, open("{}.obj".format(output_file), "wb"))
 
     def save_mesh(self, output_file):
         octree = self.seg.segmentation_counts
