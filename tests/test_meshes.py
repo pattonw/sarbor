@@ -16,6 +16,8 @@ from sarbor.meshes import (
 )
 from sarbor.octrees import OctreeVolume
 
+from pathlib import Path
+
 
 class TestMeshes(unittest.TestCase):
     """Tests for meshes module."""
