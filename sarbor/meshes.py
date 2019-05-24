@@ -64,7 +64,7 @@ def octree_to_sparse_vtk_volume(volume, cutoff=0.5, resolution=[1, 1, 1]):
             )
             if case_lower_bound in leaves:
                 leaf_data[
-                    list(
+                    tuple(
                         map(
                             slice,
                             [0 if c == 0 else -1 for c in case],
@@ -72,7 +72,7 @@ def octree_to_sparse_vtk_volume(volume, cutoff=0.5, resolution=[1, 1, 1]):
                         )
                     )
                 ] = leaves[case_lower_bound].data[
-                    list(map(slice, [0, 0, 0], [None if c == 0 else 1 for c in case]))
+                    tuple(map(slice, [0, 0, 0], [None if c == 0 else 1 for c in case]))
                 ]
 
         if any((leaf_data > cutoff).reshape(-1)):
@@ -136,6 +136,14 @@ def contour_sparse_vtk_volume(volume, cutoff):
     Marching.SetValue(0, cutoff)
     Marching.Update()
     return Marching
+
+
+def decimate_mesh(contour, target_reduction=0.1):
+    decimate = vtk.vtkDecimatePro()
+    decimate.SetInputData(contour.GetOutput())
+    decimate.SetTargetReduction(target_reduction)
+    decimate.Update()
+    return decimate
 
 
 def write_to_stl(vtk_volume, filename):
